@@ -1,8 +1,25 @@
 # Amazon kinesis producer 
-> Batch producer for Kinesis built on top of the official Go AWS SDK
-> and using the same aggregation format that [KPL][kpl-url] use.
-> Note: this project start as a fork of [go-kinesis][fork-url]; if you are not intersting
-> in the KPL aggregation logic, you probably want to check it out.
+> Batch producer for Kinesis built on top of the official Go AWS SDK  
+and using the same aggregation format that [KPL][kpl-url] use.  
+Note: this project start as a fork of [go-kinesis][fork-url]; if you are not intersting  
+in the KPL aggregation logic, you probably want to check it out.
 
-[go-kinesis]: https://github.com/tj/go-kinesis
+### Useful links
+- [Considerations When Using KPL Aggregation][kpl-aggregation]
+- [Consumer De-aggregation][de-aggregation]
+- [Aggregation format](/aggregation-format.md])
+
+### TODO
+- __Add Config.MaxConnection__ - Maximum number of connections to open to the Kinesis backend.  
+HTTP requests are sent in parallel over multiple connections.
+
+
+### License
+MIT
+
+
 [kpl-url]: https://github.com/awslabs/amazon-kinesis-producer
+[go-kinesis]: https://github.com/tj/go-kinesis
+[de-aggregation]: http://docs.aws.amazon.com/kinesis/latest/dev/kinesis-kpl-consumer-deaggregation.html
+[kpl-aggregation]: http://docs.aws.amazon.com/kinesis/latest/dev/kinesis-producer-adv-aggregation.html
+
