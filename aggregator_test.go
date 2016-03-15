@@ -29,14 +29,14 @@ func TestSizeAndCount(t *testing.T) {
 func TestAggregation(t *testing.T) {
 	var wg sync.WaitGroup
 	a := new(Aggregator)
-	n := 5
+	n := 50
 	wg.Add(n)
 	for i := 0; i < n; i++ {
 		go func(j int) {
-			wg.Done()
 			c := strconv.Itoa(j)
 			data := []byte("hello-" + c)
 			a.Put(data, c)
+			wg.Done()
 		}(i)
 	}
 	wg.Wait()

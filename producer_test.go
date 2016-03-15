@@ -1,6 +1,7 @@
 package producer
 
 import (
+	"errors"
 	"sync"
 	"testing"
 
@@ -166,9 +167,41 @@ func TestProducer(t *testing.T) {
 		p.Stop()
 		for k, v := range test.putter.incoming {
 			if len(v) != len(test.outgoing[k]) {
-				t.Errorf("failed complete test: %s\n\texcpeted:%v\n\tactual:%v", test.name,
+				t.Errorf("failed test: %s\n\texcpeted:%v\n\tactual:%v", test.name,
 					test.outgoing, test.putter.incoming)
 			}
 		}
+	}
+}
+
+func TestNotify(t *testing.T) {
+	kError := errors.New("ResourceNotFoundException: Stream foo under account X not found")
+	p := New(&Config{
+		StreamName:          "foo",
+		BatchCount:          1,
+		AggregateBatchCount: 10,
+		Client: &clientMock{
+			incoming:  make(map[int][]string),
+			responses: []responseMock{{Error: kError}},
+		},
+	})
+	p.Start()
+	records := genBulk(10, "bar")
+	var wg sync.WaitGroup
+	wg.Add(len(records))
+	failed := 0
+	go func() {
+		for _ = range p.NotifyFailure() {
+			failed++
+			wg.Done()
+		}
+	}()
+	for _, r := range records {
+		p.Put([]byte(r), r)
+	}
+	wg.Wait()
+	p.Stop()
+	if failed != len(records) {
+		t.Errorf("failed test: NotifyFailure\n\texcpeted:%v\n\tactual:%v", failed, len(records))
 	}
 }
