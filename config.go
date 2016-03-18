@@ -17,8 +17,9 @@ const (
 	maxAggregationSize   = 51200 // 50KB
 	// The KinesisProducerConfiguration set the default to 4294967295L;
 	// it's kinda odd, because the maxAggregationSize is limit to 51200L;
-	maxAggregationCount  = 4294967295
-	defaultFlushInterval = time.Second
+	maxAggregationCount   = 4294967295
+	defaultMaxConnections = 24
+	defaultFlushInterval  = time.Second
 )
 
 // Putter is the interface that wraps the KinesisAPI.PutRecords method.
@@ -50,6 +51,11 @@ type Config struct {
 	// BacklogCount determines the channel capacity before Put() will begin blocking. Default to `BatchLen`.
 	BacklogCount int
 
+	// Maximum number of connections to open to the backend.
+	// HTTP requests are sent in parallel over multiple connections.
+	// Default to 24. Maximum
+	MaxConnections int
+
 	// Backoff determines the backoff strategy for record failures.
 	Backoff backoff.Backoff
 
@@ -58,9 +64,6 @@ type Config struct {
 
 	// Client is the Putter interface implementation.
 	Client Putter
-
-	// - Maximum number of connections to open to the backend.
-	//   HTTP requests are sent in parallel over multiple connections.
 }
 
 // defaults for configuration
@@ -87,6 +90,10 @@ func (c *Config) defaults() {
 		c.AggregateBatchSize = maxAggregationSize
 	}
 	falseOrPanic(c.AggregateBatchSize > maxAggregationSize, "kinesis: AggregateBatchSize exceeds 50KB")
+	if c.MaxConnections == 0 {
+		c.MaxConnections = defaultMaxConnections
+	}
+	falseOrPanic(c.MaxConnections < 1 || c.MaxConnections > 256, "kinesis: MaxConnections must be between 1 and 256")
 	if c.FlushInterval == 0 {
 		c.FlushInterval = time.Second
 	}

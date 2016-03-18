@@ -152,6 +152,7 @@ var testCases = []testCase{
 
 func TestProducer(t *testing.T) {
 	for _, test := range testCases {
+		test.config.MaxConnections = 1
 		test.config.Client = test.putter
 		p := New(test.config)
 		p.Start()
@@ -178,6 +179,7 @@ func TestNotify(t *testing.T) {
 	kError := errors.New("ResourceNotFoundException: Stream foo under account X not found")
 	p := New(&Config{
 		StreamName:          "foo",
+		MaxConnections:      1,
 		BatchCount:          1,
 		AggregateBatchCount: 10,
 		Client: &clientMock{
@@ -191,7 +193,7 @@ func TestNotify(t *testing.T) {
 	wg.Add(len(records))
 	failed := 0
 	go func() {
-		for _ = range p.NotifyFailure() {
+		for _ = range p.NotifyFailures() {
 			failed++
 			wg.Done()
 		}

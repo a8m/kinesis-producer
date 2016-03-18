@@ -2,6 +2,7 @@ package producer
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -17,8 +18,10 @@ var (
 
 // Producer batches records.
 type Producer struct {
+	sync.Mutex
 	*Config
 	aggregator *Aggregator
+	taskPool   *TaskPool
 	records    chan *k.PutRecordsRequestEntry
 	failure    chan *FailureRecord
 	done       chan struct{}
@@ -38,6 +41,7 @@ func New(config *Config) *Producer {
 		records:    make(chan *k.PutRecordsRequestEntry, config.BacklogCount),
 		done:       make(chan struct{}),
 		aggregator: new(Aggregator),
+		taskPool:   newPool(config.MaxConnections),
 	}
 }
 
@@ -85,7 +89,9 @@ type FailureRecord struct {
 // NotifyFailures registers and return listener to handle undeliverable messages.
 // The incoming struct has a copy of the Data and the PartitionKey along with some
 // error information about why the publishing failed.
-func (p *Producer) NotifyFailure() <-chan *FailureRecord {
+func (p *Producer) NotifyFailures() <-chan *FailureRecord {
+	p.Lock()
+	defer p.Unlock()
 	if !p.notify {
 		p.notify = true
 		p.failure = make(chan *FailureRecord, p.BacklogCount)
@@ -95,6 +101,7 @@ func (p *Producer) NotifyFailure() <-chan *FailureRecord {
 
 // Start the producer
 func (p *Producer) Start() {
+	p.taskPool.Start()
 	go p.loop()
 }
 
@@ -110,6 +117,7 @@ func (p *Producer) Stop() {
 
 	// wait
 	<-p.done
+	p.taskPool.Stop()
 	p.Logger.Info("stopped producer")
 }
 
@@ -121,7 +129,10 @@ func (p *Producer) loop() {
 	tick := time.NewTicker(p.FlushInterval)
 
 	flush := func(msg string) {
-		p.flush(buf, msg)
+		b := buf
+		p.taskPool.Put(func() {
+			p.flush(b, msg)
+		})
 		buf = nil
 		size = 0
 	}
@@ -183,9 +194,11 @@ func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
 	if err != nil {
 		p.Backoff.Reset()
 		p.Logger.WithError(err).Error("flush")
+		p.Lock()
 		if p.notify {
 			p.dispatchFailures(records, err)
 		}
+		p.Unlock()
 		return
 	}
 
