@@ -23,8 +23,9 @@ func ExampleSimple() {
 
 	// Handle failures
 	go func() {
-		for _ = range pr.NotifyFailure() {
+		for r := range pr.NotifyFailures() {
 			// r contains `Data`, `PartitionKey` and `Error()`
+			log.Error(r)
 		}
 	}()
 
