@@ -53,7 +53,7 @@ type Config struct {
 
 	// Maximum number of connections to open to the backend.
 	// HTTP requests are sent in parallel over multiple connections.
-	// Default to 24. Maximum
+	// Default to 24.
 	MaxConnections int
 
 	// Backoff determines the backoff strategy for record failures.
