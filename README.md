@@ -9,10 +9,6 @@ in the KPL aggregation logic, you probably want to check it out.
 - [Consumer De-aggregation][de-aggregation]
 - [Aggregation format](/aggregation-format.md])
 
-### TODO
-- __Add Config.MaxConnection__ - Maximum number of connections to open to the Kinesis backend.  
-HTTP requests are sent in parallel over multiple connections.
-
 
 ### License
 MIT
