@@ -31,7 +31,7 @@ type Config struct {
 	// StreamName is the Kinesis stream.
 	StreamName string
 
-	// FlushInterval is a regular interval for flushing the buffer. Defaults to 1s.
+	// FlushInterval is a regular interval for flushing the buffer. Defaults to 5s.
 	FlushInterval time.Duration
 
 	// BatchCount determine the maximum number of items to pack into an Put
@@ -95,7 +95,7 @@ func (c *Config) defaults() {
 	}
 	falseOrPanic(c.MaxConnections < 1 || c.MaxConnections > 256, "kinesis: MaxConnections must be between 1 and 256")
 	if c.FlushInterval == 0 {
-		c.FlushInterval = time.Second
+		c.FlushInterval = time.Second * 5
 	}
 }
 
