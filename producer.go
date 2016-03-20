@@ -147,7 +147,7 @@ func (p *Producer) loop() {
 				if size > 0 {
 					flush("drain")
 				}
-				p.Logger.Info("drained")
+				p.Logger.Info("backlog drained")
 				return
 			}
 			// The record size limit applies to the total size of the
