@@ -101,6 +101,7 @@ func (p *Producer) NotifyFailures() <-chan *FailureRecord {
 
 // Start the producer
 func (p *Producer) Start() {
+	p.Logger.WithField("stream", p.StreamName).Info("starting producer")
 	p.taskPool.Start()
 	go p.loop()
 }
