@@ -26,14 +26,14 @@ type Producer struct {
 	failure    chan *FailureRecord
 	done       chan struct{}
 	// Current state of the Producer
-	// notify set to true after calling to `NotifyFailure`
+	// notify set to true after calling to `NotifyFailures`
 	notify bool
 	// stopped set to true after `Stop`ing the Producer.
 	// This will prevent from user to `Put` any new data.
 	stopped bool
 }
 
-// Create new producer with the given config.
+// New creates new producer with the given config.
 func New(config *Config) *Producer {
 	config.defaults()
 	return &Producer{
@@ -51,7 +51,7 @@ func New(config *Config) *Producer {
 // transient errors.
 // When unrecoverable error has detected(e.g: trying to put to in a stream that
 // doesn't exist), the message will returned by the Producer.
-// Add a listener with `Producer.NotifyFailure` to handle undeliverable messages.
+// Add a listener with `Producer.NotifyFailures` to handle undeliverable messages.
 func (p *Producer) Put(data []byte, partitionKey string) error {
 	if p.stopped {
 		return ErrStoppedProducer

@@ -1,7 +1,6 @@
 package producer
 
 // TaskPool is a simple task queue implementation
-//
 type TaskPool struct {
 	// Number of workers to spawn
 	nWorkers int
@@ -15,7 +14,6 @@ type TaskPool struct {
 
 // NewTask gets conncurrency argument, and returns new TaskPool.
 // Should start manually.
-//
 func newPool(conn int) *TaskPool {
 	p := &TaskPool{
 		nWorkers: conn,
@@ -34,15 +32,13 @@ func (p *TaskPool) Start() {
 }
 
 // Put may block the caller if there is no available worker
-//
 func (p *TaskPool) Put(t func()) {
 	p.tasks <- t
 }
 
-// Close all channels and goroutines managed by the pool.
-// calling close is a blocking call that guarantees all goroutines
+// Stop will close all channels and goroutines managed by the pool.
+// calling `Stop` is a blocking call that guarantees all goroutines
 // are stopped.
-//
 func (p *TaskPool) Stop() {
 	close(p.tasks)
 	defer close(p.done)
