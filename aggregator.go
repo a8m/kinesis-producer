@@ -1,6 +1,7 @@
 package producer
 
 import (
+	"bytes"
 	"crypto/md5"
 	"sync"
 
@@ -82,15 +83,7 @@ func (a *Aggregator) clear() {
 
 // Test if a given entry is aggregated record.
 func isAggregated(entry *k.PutRecordsRequestEntry) bool {
-	if len(entry.Data) < len(magicNumber) {
-		return false
-	}
-	for i, b := range magicNumber {
-		if entry.Data[i] != b {
-			return false
-		}
-	}
-	return true
+	return bytes.HasPrefix(entry.Data, magicNumber)
 }
 
 func extractRecords(entry *k.PutRecordsRequestEntry) (out []*k.PutRecordsRequestEntry) {
