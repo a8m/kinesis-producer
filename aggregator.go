@@ -39,7 +39,13 @@ func (a *Aggregator) Count() int {
 func (a *Aggregator) Put(data []byte, partitionKey string) {
 	a.Lock()
 	defer a.Unlock()
-	a.pkeys = append(a.pkeys, partitionKey)
+	// For now, all records in the aggregated record will have
+	// the same partition key.
+	// later, we will add shard-mapper same as the KPL use.
+	// see: https://github.com/a8m/kinesis-producer/issues/1
+	if len(a.pkeys) == 0 {
+		a.pkeys = append(a.pkeys, partitionKey)
+	}
 	keyIndex := uint64(len(a.pkeys) - 1)
 	a.buf = append(a.buf, &Record{
 		Data:              data,
