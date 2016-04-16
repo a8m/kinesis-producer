@@ -59,8 +59,11 @@ type Config struct {
 	// Backoff determines the backoff strategy for record failures.
 	Backoff backoff.Backoff
 
-	// Logger is the logger used. Defaults to logrus.Log.
+	// Logger is the logger used. Default to logrus.Log.
 	Logger *logrus.Logger
+
+	// Enabling verbose logging. Default to false.
+	Verbose bool
 
 	// Client is the Putter interface implementation.
 	Client Putter

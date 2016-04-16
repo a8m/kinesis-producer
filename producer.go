@@ -203,6 +203,20 @@ func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
 		return
 	}
 
+	if p.Verbose {
+		for i, r := range out.Records {
+			fields := make(logrus.Fields)
+			if r.ErrorCode != nil {
+				fields["ErrorCode"] = *r.ErrorCode
+				fields["ErrorMessage"] = *r.ErrorMessage
+			} else {
+				fields["ShardId"] = *r.ShardId
+				fields["SequenceNumber"] = *r.SequenceNumber
+			}
+			p.Logger.WithFields(fields).Infof("Result[%d]", i)
+		}
+	}
+
 	failed := *out.FailedRecordCount
 	if failed == 0 {
 		p.Backoff.Reset()
