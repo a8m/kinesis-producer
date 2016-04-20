@@ -53,6 +53,8 @@ func New(config *Config) *Producer {
 // doesn't exist), the message will returned by the Producer.
 // Add a listener with `Producer.NotifyFailures` to handle undeliverable messages.
 func (p *Producer) Put(data []byte, partitionKey string) error {
+	p.Lock()
+	defer p.Unlock()
 	if p.stopped {
 		return ErrStoppedProducer
 	}

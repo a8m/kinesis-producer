@@ -32,7 +32,7 @@ func (a *Aggregator) Size() int {
 func (a *Aggregator) Count() int {
 	a.Lock()
 	defer a.Unlock()
-	return len(a.pkeys)
+	return len(a.buf)
 }
 
 // Put record using `data` and `partitionKey`. This method is thread-safe.

@@ -50,7 +50,7 @@ func TestAggregation(t *testing.T) {
 		c := strconv.Itoa(i)
 		found := false
 		for _, record := range records {
-			if *record.PartitionKey == c {
+			if string(record.Data) == "hello-"+c {
 				assert(t, string(record.Data) == "hello-"+c, "`Data` field contains invalid value")
 				found = true
 			}

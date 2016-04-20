@@ -125,7 +125,7 @@ var testCases = []testCase{
 	},
 	{
 		"2 bulks of 10 records",
-		&Config{BatchCount: 10, AggregateBatchCount: 2},
+		&Config{BatchCount: 10, AggregateBatchCount: 1, BacklogCount: 1},
 		genBulk(20, "foo"),
 		&clientMock{
 			incoming: make(map[int][]string),
