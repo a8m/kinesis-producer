@@ -45,19 +45,20 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 	// see: https://github.com/a8m/kinesis-producer/issues/1
 	if len(a.pkeys) == 0 {
 		a.pkeys = append(a.pkeys, partitionKey)
+		a.nbytes += len([]byte(partitionKey))
 	}
 	keyIndex := uint64(len(a.pkeys) - 1)
 	a.buf = append(a.buf, &Record{
 		Data:              data,
 		PartitionKeyIndex: &keyIndex,
 	})
-	a.nbytes += len([]byte(partitionKey)) + len(data)
+	a.nbytes += len(data)
 }
 
 // Drain create an aggregated `kinesis.PutRecordsRequestEntry`
 // that compatible with the KCL's deaggregation logic.
 //
-// If you interested to know more that. see: aggregation-format.md
+// If you interested to know more about it. see: aggregation-format.md
 func (a *Aggregator) Drain() (*k.PutRecordsRequestEntry, error) {
 	a.Lock()
 	defer a.Unlock()
