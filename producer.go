@@ -110,6 +110,8 @@ func (p *Producer) Start() {
 
 // Stop the producer gracefully. Flushes any in-flight data.
 func (p *Producer) Stop() {
+	p.Lock()
+	defer p.Unlock()
 	p.stopped = true
 	p.Logger.WithField("backlog", len(p.records)).Info("stopping producer")
 
