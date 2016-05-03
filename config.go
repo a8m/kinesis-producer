@@ -34,7 +34,7 @@ type Config struct {
 	// FlushInterval is a regular interval for flushing the buffer. Defaults to 5s.
 	FlushInterval time.Duration
 
-	// BatchCount determine the maximum number of items to pack into an Put
+	// BatchCount determine the maximum number of items to pack in batch.
 	// Must not exceed length. Defaults to 500.
 	BatchCount int
 
@@ -48,7 +48,7 @@ type Config struct {
 	// AggregationBatchSize determine the maximum number of bytes to pack into an aggregated record.
 	AggregateBatchSize int
 
-	// BacklogCount determines the channel capacity before Put() will begin blocking. Default to `BatchLen`.
+	// BacklogCount determines the channel capacity before Put() will begin blocking. Default to `BatchCount`.
 	BacklogCount int
 
 	// Maximum number of connections to open to the backend.
