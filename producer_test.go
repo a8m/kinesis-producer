@@ -152,6 +152,7 @@ var testCases = []testCase{
 
 func TestProducer(t *testing.T) {
 	for _, test := range testCases {
+		test.config.StreamName = test.name
 		test.config.MaxConnections = 1
 		test.config.Client = test.putter
 		p := New(test.config)
