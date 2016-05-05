@@ -25,6 +25,7 @@ type Producer struct {
 	records    chan *k.PutRecordsRequestEntry
 	failure    chan *FailureRecord
 	done       chan struct{}
+
 	// Current state of the Producer
 	// notify set to true after calling to `NotifyFailures`
 	notify bool
@@ -111,8 +112,8 @@ func (p *Producer) Start() {
 // Stop the producer gracefully. Flushes any in-flight data.
 func (p *Producer) Stop() {
 	p.Lock()
-	defer p.Unlock()
 	p.stopped = true
+	p.Unlock()
 	p.Logger.WithField("backlog", len(p.records)).Info("stopping producer")
 
 	// drain
