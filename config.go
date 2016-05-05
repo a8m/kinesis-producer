@@ -51,9 +51,7 @@ type Config struct {
 	// BacklogCount determines the channel capacity before Put() will begin blocking. Default to `BatchCount`.
 	BacklogCount int
 
-	// Maximum number of connections to open to the backend.
-	// HTTP requests are sent in parallel over multiple connections.
-	// Default to 24.
+	// Number of requests to sent concurrently. Default to 24.
 	MaxConnections int
 
 	// Backoff determines the backoff strategy for record failures.
