@@ -198,9 +198,9 @@ func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
 	})
 
 	if err != nil {
-		p.Backoff.Reset()
 		p.Logger.WithError(err).Error("flush")
 		p.Lock()
+		p.Backoff.Reset()
 		if p.notify {
 			p.dispatchFailures(records, err)
 		}
@@ -224,11 +224,17 @@ func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
 
 	failed := *out.FailedRecordCount
 	if failed == 0 {
+		p.Lock()
 		p.Backoff.Reset()
+		p.Unlock()
 		return
 	}
 
+	// TODO(a8m): we've too many locks here.
+	// add thread-safe backoff implementation.
+	p.Lock()
 	backoff := p.Backoff.Duration()
+	p.Unlock()
 
 	p.Logger.WithFields(logrus.Fields{
 		"failures": failed,
