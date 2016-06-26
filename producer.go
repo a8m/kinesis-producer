@@ -7,6 +7,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	k "github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/jpillora/backoff"
 )
 
 // Errors
@@ -191,59 +192,58 @@ func (p *Producer) drainIfNeed() {
 // flush records and retry failures if necessary.
 // for example: when we get "ProvisionedThroughputExceededException"
 func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
-	p.Logger.WithField("reason", reason).Infof("flush %v records", len(records))
-	out, err := p.Client.PutRecords(&k.PutRecordsInput{
-		StreamName: &p.StreamName,
-		Records:    records,
-	})
-
-	if err != nil {
-		p.Logger.WithError(err).Error("flush")
-		p.Lock()
-		p.Backoff.Reset()
-		if p.notify {
-			p.dispatchFailures(records, err)
-		}
-		p.Unlock()
-		return
+	b := &backoff.Backoff{
+		Jitter: true,
 	}
+	for {
+		p.Logger.WithField("reason", reason).Infof("flush %v records", len(records))
+		out, err := p.Client.PutRecords(&k.PutRecordsInput{
+			StreamName: &p.StreamName,
+			Records:    records,
+		})
 
-	if p.Verbose {
-		for i, r := range out.Records {
-			fields := make(logrus.Fields)
-			if r.ErrorCode != nil {
-				fields["ErrorCode"] = *r.ErrorCode
-				fields["ErrorMessage"] = *r.ErrorMessage
-			} else {
-				fields["ShardId"] = *r.ShardId
-				fields["SequenceNumber"] = *r.SequenceNumber
+		if err != nil {
+			p.Logger.WithError(err).Error("flush")
+			p.Lock()
+			if p.notify {
+				p.dispatchFailures(records, err)
 			}
-			p.Logger.WithFields(fields).Infof("Result[%d]", i)
+			p.Unlock()
+			return
 		}
+
+		if p.Verbose {
+			for i, r := range out.Records {
+				fields := make(logrus.Fields)
+				if r.ErrorCode != nil {
+					fields["ErrorCode"] = *r.ErrorCode
+					fields["ErrorMessage"] = *r.ErrorMessage
+				} else {
+					fields["ShardId"] = *r.ShardId
+					fields["SequenceNumber"] = *r.SequenceNumber
+				}
+				p.Logger.WithFields(fields).Infof("Result[%d]", i)
+			}
+		}
+
+		failed := *out.FailedRecordCount
+		if failed == 0 {
+			return
+		}
+
+		duration := b.Duration()
+
+		p.Logger.WithFields(logrus.Fields{
+			"failures": failed,
+			"backoff":  duration.String(),
+		}).Warn("put failures")
+
+		time.Sleep(duration)
+
+		// change the logging state for the next itertion
+		reason = "retry"
+		records = failures(records, out.Records)
 	}
-
-	failed := *out.FailedRecordCount
-	if failed == 0 {
-		p.Lock()
-		p.Backoff.Reset()
-		p.Unlock()
-		return
-	}
-
-	// TODO(a8m): we've too many locks here.
-	// add thread-safe backoff implementation.
-	p.Lock()
-	backoff := p.Backoff.Duration()
-	p.Unlock()
-
-	p.Logger.WithFields(logrus.Fields{
-		"failures": failed,
-		"backoff":  backoff,
-	}).Warn("put failures")
-
-	time.Sleep(backoff)
-
-	p.flush(failures(records, out.Records), "retry")
 }
 
 // dispatchFailures gets batch of records, extract them, and push them

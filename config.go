@@ -5,7 +5,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	k "github.com/aws/aws-sdk-go/service/kinesis"
-	"github.com/jpillora/backoff"
 )
 
 // Constants and default configuration take from:
@@ -53,9 +52,6 @@ type Config struct {
 
 	// Number of requests to sent concurrently. Default to 24.
 	MaxConnections int
-
-	// Backoff determines the backoff strategy for record failures.
-	Backoff backoff.Backoff
 
 	// Logger is the logger used. Default to logrus.Log.
 	Logger *logrus.Logger
