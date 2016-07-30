@@ -14,7 +14,7 @@ var (
 )
 
 type Aggregator struct {
-	sync.Mutex
+	sync.RWMutex
 	buf    []*Record
 	pkeys  []string
 	nbytes int
@@ -23,15 +23,15 @@ type Aggregator struct {
 // Size return how many bytes stored in the aggregator.
 // including partition keys.
 func (a *Aggregator) Size() int {
-	a.Lock()
-	defer a.Unlock()
+	a.RLock()
+	defer a.RUnlock()
 	return a.nbytes
 }
 
 // Count return how many records stored in the aggregator.
 func (a *Aggregator) Count() int {
-	a.Lock()
-	defer a.Unlock()
+	a.RLock()
+	defer a.RUnlock()
 	return len(a.buf)
 }
 
