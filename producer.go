@@ -174,7 +174,7 @@ func (p *Producer) loop() {
 				p.Logger.Info("backlog drained")
 				return
 			}
-			// The record size limit applies to the total size of the
+			// the record size limit applies to the total size of the
 			// partition key and data blob.
 			rsize := len(record.Data) + len([]byte(*record.PartitionKey))
 			if size+rsize > p.BatchSize {
@@ -186,9 +186,12 @@ func (p *Producer) loop() {
 				flush("batch length")
 			}
 		case <-tick.C:
-			p.drainIfNeed()
 			if size > 0 {
 				flush("interval")
+			}
+			// if the records channel is full this operation will block forever
+			if len(p.records) < cap(p.records) {
+				p.drainIfNeed()
 			}
 		case <-p.done:
 			drain = true
@@ -202,12 +205,13 @@ func (p *Producer) drainIfNeed() {
 	p.RUnlock()
 	if needToDrain {
 		p.Lock()
-		if record, err := p.aggregator.Drain(); err != nil {
+		record, err := p.aggregator.Drain()
+		p.Unlock()
+		if err != nil {
 			p.Logger.WithError(err).Error("drain aggregator")
 		} else {
 			p.records <- record
 		}
-		p.Unlock()
 	}
 }
 
