@@ -32,12 +32,10 @@ func TestAggregation(t *testing.T) {
 	n := 50
 	wg.Add(n)
 	for i := 0; i < n; i++ {
-		go func(j int) {
-			c := strconv.Itoa(j)
-			data := []byte("hello-" + c)
-			a.Put(data, c)
-			wg.Done()
-		}(i)
+		c := strconv.Itoa(i)
+		data := []byte("hello-" + c)
+		a.Put(data, c)
+		wg.Done()
 	}
 	wg.Wait()
 	record, err := a.Drain()

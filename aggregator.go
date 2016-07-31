@@ -3,7 +3,6 @@ package producer
 import (
 	"bytes"
 	"crypto/md5"
-	"sync"
 
 	k "github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/golang/protobuf/proto"
@@ -14,7 +13,6 @@ var (
 )
 
 type Aggregator struct {
-	sync.RWMutex
 	buf    []*Record
 	pkeys  []string
 	nbytes int
@@ -23,22 +21,16 @@ type Aggregator struct {
 // Size return how many bytes stored in the aggregator.
 // including partition keys.
 func (a *Aggregator) Size() int {
-	a.RLock()
-	defer a.RUnlock()
 	return a.nbytes
 }
 
 // Count return how many records stored in the aggregator.
 func (a *Aggregator) Count() int {
-	a.RLock()
-	defer a.RUnlock()
 	return len(a.buf)
 }
 
 // Put record using `data` and `partitionKey`. This method is thread-safe.
 func (a *Aggregator) Put(data []byte, partitionKey string) {
-	a.Lock()
-	defer a.Unlock()
 	// For now, all records in the aggregated record will have
 	// the same partition key.
 	// later, we will add shard-mapper same as the KPL use.
@@ -60,8 +52,6 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 //
 // If you interested to know more about it. see: aggregation-format.md
 func (a *Aggregator) Drain() (*k.PutRecordsRequestEntry, error) {
-	a.Lock()
-	defer a.Unlock()
 	data, err := proto.Marshal(&AggregatedRecord{
 		PartitionKeyTable: a.pkeys,
 		Records:           a.buf,

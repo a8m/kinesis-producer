@@ -19,7 +19,7 @@ var (
 
 // Producer batches records.
 type Producer struct {
-	sync.Mutex
+	sync.RWMutex
 	*Config
 	aggregator *Aggregator
 	taskPool   *TaskPool
@@ -55,9 +55,10 @@ func New(config *Config) *Producer {
 // doesn't exist), the message will returned by the Producer.
 // Add a listener with `Producer.NotifyFailures` to handle undeliverable messages.
 func (p *Producer) Put(data []byte, partitionKey string) error {
-	p.Lock()
-	defer p.Unlock()
-	if p.stopped {
+	p.RLock()
+	stopped := p.stopped
+	p.RUnlock()
+	if stopped {
 		return ErrStoppedProducer
 	}
 	if len(data) > maxRecordSize {
@@ -67,18 +68,35 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		return ErrIllegalPartitionKey
 	}
 	nbytes := len(data) + len([]byte(partitionKey))
-	switch {
-	case nbytes > p.AggregateBatchSize:
+	// if the record size is bigger than aggregation size
+	// handle it as a simple kinesis record
+	if nbytes > p.AggregateBatchSize {
 		p.records <- &k.PutRecordsRequestEntry{
 			Data:         data,
 			PartitionKey: &partitionKey,
 		}
-	case nbytes+p.aggregator.Size() > p.AggregateBatchSize ||
-		p.aggregator.Count() >= p.AggregateBatchCount:
-		p.drainIfNeed()
-		fallthrough
-	default:
+	} else {
+		p.RLock()
+		needToDrain := nbytes+p.aggregator.Size() > p.AggregateBatchSize || p.aggregator.Count() >= p.AggregateBatchCount
+		p.RUnlock()
+		var (
+			record *k.PutRecordsRequestEntry
+			err    error
+		)
+		p.Lock()
+		if needToDrain {
+			if record, err = p.aggregator.Drain(); err != nil {
+				p.Logger.WithError(err).Error("drain aggregator")
+			}
+		}
 		p.aggregator.Put(data, partitionKey)
+		p.Unlock()
+		// release the lock and then pipe the record to the records channel
+		// we did it, because the "send" operation blocks when the backlog is full
+		// and this can cause deadlock(when we never release the lock)
+		if needToDrain && record != nil {
+			p.records <- record
+		}
 	}
 	return nil
 }
@@ -179,13 +197,17 @@ func (p *Producer) loop() {
 }
 
 func (p *Producer) drainIfNeed() {
-	if p.aggregator.Size() > 0 {
-		record, err := p.aggregator.Drain()
-		if err != nil {
+	p.RLock()
+	needToDrain := p.aggregator.Size() > 0
+	p.RUnlock()
+	if needToDrain {
+		p.Lock()
+		if record, err := p.aggregator.Drain(); err != nil {
 			p.Logger.WithError(err).Error("drain aggregator")
 		} else {
 			p.records <- record
 		}
+		p.Unlock()
 	}
 }
 
@@ -204,11 +226,12 @@ func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
 
 		if err != nil {
 			p.Logger.WithError(err).Error("flush")
-			p.Lock()
-			if p.notify {
+			p.RLock()
+			notify := p.notify
+			p.RUnlock()
+			if notify {
 				p.dispatchFailures(records, err)
 			}
-			p.Unlock()
 			return
 		}
 

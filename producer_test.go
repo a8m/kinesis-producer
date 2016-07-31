@@ -169,7 +169,7 @@ func TestProducer(t *testing.T) {
 		p.Stop()
 		for k, v := range test.putter.incoming {
 			if len(v) != len(test.outgoing[k]) {
-				t.Errorf("failed test: %s\n\texcpeted:%v\n\tactual:%v", test.name,
+				t.Errorf("failed test: %s\n\texcpeted:%v\n\tactual:  %v", test.name,
 					test.outgoing, test.putter.incoming)
 			}
 		}
