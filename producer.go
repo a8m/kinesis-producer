@@ -143,6 +143,13 @@ func (p *Producer) Stop() {
 	// wait
 	<-p.done
 	p.taskPool.Stop()
+
+	// close the failures channel if we notify
+	p.RLock()
+	if p.notify {
+		close(p.failure)
+	}
+	p.RUnlock()
 	p.Logger.Info("stopped producer")
 }
 
