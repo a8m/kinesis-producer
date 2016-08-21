@@ -22,7 +22,7 @@ type Producer struct {
 	sync.RWMutex
 	*Config
 	aggregator *Aggregator
-	taskPool   *TaskPool
+	semaphore  semaphore
 	records    chan *k.PutRecordsRequestEntry
 	failure    chan *FailureRecord
 	done       chan struct{}
@@ -40,10 +40,10 @@ func New(config *Config) *Producer {
 	config.defaults()
 	return &Producer{
 		Config:     config,
-		records:    make(chan *k.PutRecordsRequestEntry, config.BacklogCount),
 		done:       make(chan struct{}),
+		records:    make(chan *k.PutRecordsRequestEntry, config.BacklogCount),
+		semaphore:  make(chan struct{}, config.MaxConnections),
 		aggregator: new(Aggregator),
-		taskPool:   newPool(config.MaxConnections),
 	}
 }
 
@@ -124,7 +124,6 @@ func (p *Producer) NotifyFailures() <-chan *FailureRecord {
 // Start the producer
 func (p *Producer) Start() {
 	p.Logger.WithField("stream", p.StreamName).Info("starting producer")
-	p.taskPool.Start()
 	go p.loop()
 }
 
@@ -142,7 +141,7 @@ func (p *Producer) Stop() {
 
 	// wait
 	<-p.done
-	p.taskPool.Stop()
+	p.semaphore.wait()
 
 	// close the failures channel if we notify
 	p.RLock()
@@ -162,9 +161,8 @@ func (p *Producer) loop() {
 
 	flush := func(msg string) {
 		b := buf
-		p.taskPool.Put(func() {
-			p.flush(b, msg)
-		})
+		p.semaphore.acquire()
+		go p.flush(b, msg)
 		buf = nil
 		size = 0
 	}
@@ -228,6 +226,9 @@ func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
 	b := &backoff.Backoff{
 		Jitter: true,
 	}
+
+	defer p.semaphore.release()
+
 	for {
 		p.Logger.WithField("reason", reason).Infof("flush %v records", len(records))
 		out, err := p.Client.PutRecords(&k.PutRecordsInput{
