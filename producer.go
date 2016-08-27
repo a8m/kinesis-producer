@@ -160,9 +160,8 @@ func (p *Producer) loop() {
 	tick := time.NewTicker(p.FlushInterval)
 
 	flush := func(msg string) {
-		b := buf
 		p.semaphore.acquire()
-		go p.flush(b, msg)
+		go p.flush(buf, msg)
 		buf = nil
 		size = 0
 	}
