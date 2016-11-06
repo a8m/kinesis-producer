@@ -135,7 +135,9 @@ func (p *Producer) Stop() {
 	p.Logger.WithField("backlog", len(p.records)).Info("stopping producer")
 
 	// drain
-	p.drainIfNeed()
+	if record, ok := p.drainIfNeed(); ok {
+		p.records <- record
+	}
 	p.done <- struct{}{}
 	close(p.records)
 
@@ -166,8 +168,23 @@ func (p *Producer) loop() {
 		size = 0
 	}
 
+	bufAppend := func(record *k.PutRecordsRequestEntry) {
+		// the record size limit applies to the total size of the
+		// partition key and data blob.
+		rsize := len(record.Data) + len([]byte(*record.PartitionKey))
+		if size+rsize > p.BatchSize {
+			flush("batch size")
+		}
+		size += rsize
+		buf = append(buf, record)
+		if len(buf) >= p.BatchCount {
+			flush("batch length")
+		}
+	}
+
 	defer tick.Stop()
 	defer close(p.done)
+
 	for {
 		select {
 		case record, ok := <-p.records:
@@ -178,24 +195,14 @@ func (p *Producer) loop() {
 				p.Logger.Info("backlog drained")
 				return
 			}
-			// the record size limit applies to the total size of the
-			// partition key and data blob.
-			rsize := len(record.Data) + len([]byte(*record.PartitionKey))
-			if size+rsize > p.BatchSize {
-				flush("batch size")
-			}
-			size += rsize
-			buf = append(buf, record)
-			if len(buf) >= p.BatchCount {
-				flush("batch length")
-			}
+			bufAppend(record)
 		case <-tick.C:
+			if record, ok := p.drainIfNeed(); ok {
+				bufAppend(record)
+			}
+			// if the buffer is still containing records
 			if size > 0 {
 				flush("interval")
-			}
-			// if the records channel is full this operation will block forever
-			if len(p.records) < cap(p.records) {
-				p.drainIfNeed()
 			}
 		case <-p.done:
 			drain = true
@@ -203,7 +210,7 @@ func (p *Producer) loop() {
 	}
 }
 
-func (p *Producer) drainIfNeed() {
+func (p *Producer) drainIfNeed() (*k.PutRecordsRequestEntry, bool) {
 	p.RLock()
 	needToDrain := p.aggregator.Size() > 0
 	p.RUnlock()
@@ -214,9 +221,10 @@ func (p *Producer) drainIfNeed() {
 		if err != nil {
 			p.Logger.WithError(err).Error("drain aggregator")
 		} else {
-			p.records <- record
+			return record, true
 		}
 	}
+	return nil, false
 }
 
 // flush records and retry failures if necessary.
