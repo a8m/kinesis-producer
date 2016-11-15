@@ -6,12 +6,12 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-	k "github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/aws/aws-sdk-go/service/kinesis"
 )
 
 func ExampleSimple() {
 	log := logrus.New()
-	client := k.New(session.New(aws.NewConfig()))
+	client := kinesis.New(session.New(aws.NewConfig()))
 	pr := New(&Config{
 		StreamName:   "test",
 		BacklogCount: 2000,
