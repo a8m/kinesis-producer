@@ -1,3 +1,9 @@
+// Amazon kinesis producer
+// A KPL-like batch producer for Amazon Kinesis built on top of the official Go AWS SDK
+// and using the same aggregation format that KPL use.
+//
+// Note: this project start as a fork of `tj/go-kinesis`. if you are not intersting in the
+// KPL aggregation logic, you probably want to check it out.
 package producer
 
 import (
