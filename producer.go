@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	k "github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/jpillora/backoff"
 )
 
@@ -23,7 +23,7 @@ type Producer struct {
 	*Config
 	aggregator *Aggregator
 	semaphore  semaphore
-	records    chan *k.PutRecordsRequestEntry
+	records    chan *kinesis.PutRecordsRequestEntry
 	failure    chan *FailureRecord
 	done       chan struct{}
 
@@ -41,7 +41,7 @@ func New(config *Config) *Producer {
 	return &Producer{
 		Config:     config,
 		done:       make(chan struct{}),
-		records:    make(chan *k.PutRecordsRequestEntry, config.BacklogCount),
+		records:    make(chan *kinesis.PutRecordsRequestEntry, config.BacklogCount),
 		semaphore:  make(chan struct{}, config.MaxConnections),
 		aggregator: new(Aggregator),
 	}
@@ -71,7 +71,7 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 	// if the record size is bigger than aggregation size
 	// handle it as a simple kinesis record
 	if nbytes > p.AggregateBatchSize {
-		p.records <- &k.PutRecordsRequestEntry{
+		p.records <- &kinesis.PutRecordsRequestEntry{
 			Data:         data,
 			PartitionKey: &partitionKey,
 		}
@@ -80,7 +80,7 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		needToDrain := nbytes+p.aggregator.Size() > p.AggregateBatchSize || p.aggregator.Count() >= p.AggregateBatchCount
 		p.RUnlock()
 		var (
-			record *k.PutRecordsRequestEntry
+			record *kinesis.PutRecordsRequestEntry
 			err    error
 		)
 		p.Lock()
@@ -158,7 +158,7 @@ func (p *Producer) Stop() {
 func (p *Producer) loop() {
 	size := 0
 	drain := false
-	buf := make([]*k.PutRecordsRequestEntry, 0, p.BatchCount)
+	buf := make([]*kinesis.PutRecordsRequestEntry, 0, p.BatchCount)
 	tick := time.NewTicker(p.FlushInterval)
 
 	flush := func(msg string) {
@@ -168,7 +168,7 @@ func (p *Producer) loop() {
 		size = 0
 	}
 
-	bufAppend := func(record *k.PutRecordsRequestEntry) {
+	bufAppend := func(record *kinesis.PutRecordsRequestEntry) {
 		// the record size limit applies to the total size of the
 		// partition key and data blob.
 		rsize := len(record.Data) + len([]byte(*record.PartitionKey))
@@ -210,7 +210,7 @@ func (p *Producer) loop() {
 	}
 }
 
-func (p *Producer) drainIfNeed() (*k.PutRecordsRequestEntry, bool) {
+func (p *Producer) drainIfNeed() (*kinesis.PutRecordsRequestEntry, bool) {
 	p.RLock()
 	needToDrain := p.aggregator.Size() > 0
 	p.RUnlock()
@@ -229,7 +229,7 @@ func (p *Producer) drainIfNeed() (*k.PutRecordsRequestEntry, bool) {
 
 // flush records and retry failures if necessary.
 // for example: when we get "ProvisionedThroughputExceededException"
-func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
+func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason string) {
 	b := &backoff.Backoff{
 		Jitter: true,
 	}
@@ -238,7 +238,7 @@ func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
 
 	for {
 		p.Logger.WithField("reason", reason).Infof("flush %v records", len(records))
-		out, err := p.Client.PutRecords(&k.PutRecordsInput{
+		out, err := p.Client.PutRecords(&kinesis.PutRecordsInput{
 			StreamName: &p.StreamName,
 			Records:    records,
 		})
@@ -290,7 +290,7 @@ func (p *Producer) flush(records []*k.PutRecordsRequestEntry, reason string) {
 
 // dispatchFailures gets batch of records, extract them, and push them
 // into the failure channel
-func (p *Producer) dispatchFailures(records []*k.PutRecordsRequestEntry, err error) {
+func (p *Producer) dispatchFailures(records []*kinesis.PutRecordsRequestEntry, err error) {
 	for _, r := range records {
 		if isAggregated(r) {
 			p.dispatchFailures(extractRecords(r), err)
@@ -301,7 +301,8 @@ func (p *Producer) dispatchFailures(records []*k.PutRecordsRequestEntry, err err
 }
 
 // failures returns the failed records as indicated in the response.
-func failures(records []*k.PutRecordsRequestEntry, response []*k.PutRecordsResultEntry) (out []*k.PutRecordsRequestEntry) {
+func failures(records []*kinesis.PutRecordsRequestEntry,
+	response []*kinesis.PutRecordsResultEntry) (out []*kinesis.PutRecordsRequestEntry) {
 	for i, record := range response {
 		if record.ErrorCode != nil {
 			out = append(out, records[i])
