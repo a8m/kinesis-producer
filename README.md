@@ -24,7 +24,7 @@ import (
 func main() {
 	log := logrus.New()
 	client := kinesis.New(session.New(aws.NewConfig()))
-	pr := producer.New(&Config{
+	pr := producer.New(&producer.Config{
 		StreamName:   "test",
 		BacklogCount: 2000,
 		Client:       client,
