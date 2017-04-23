@@ -26,6 +26,7 @@ type Putter interface {
 	PutRecords(*k.PutRecordsInput) (*k.PutRecordsOutput, error)
 }
 
+// Config is the Producer configuration.
 type Config struct {
 	// StreamName is the Kinesis stream.
 	StreamName string
