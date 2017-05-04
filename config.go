@@ -55,7 +55,7 @@ type Config struct {
 	MaxConnections int
 
 	// Logger is the logger used. Default to logrus.Log.
-	Logger *logrus.Logger
+	Logger logrus.FieldLogger
 
 	// Enabling verbose logging. Default to false.
 	Verbose bool
