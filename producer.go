@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/jpillora/backoff"
 )

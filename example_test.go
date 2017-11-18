@@ -3,10 +3,10 @@ package producer
 import (
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/sirupsen/logrus"
 )
 
 func ExampleSimple() {
