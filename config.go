@@ -3,8 +3,8 @@ package producer
 import (
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	k "github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/sirupsen/logrus"
 )
 
 // Constants and default configuration take from:
