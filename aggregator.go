@@ -52,6 +52,9 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 //
 // If you interested to know more about it. see: aggregation-format.md
 func (a *Aggregator) Drain() (*k.PutRecordsRequestEntry, error) {
+	if a.nbytes == 0 {
+		return nil, nil
+	}
 	data, err := proto.Marshal(&AggregatedRecord{
 		PartitionKeyTable: a.pkeys,
 		Records:           a.buf,
