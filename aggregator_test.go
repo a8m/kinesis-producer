@@ -56,3 +56,9 @@ func TestAggregation(t *testing.T) {
 		assert(t, found, "record not found after extracting: "+c)
 	}
 }
+
+func TestDrainEmptyAggregator(t *testing.T) {
+	a := new(Aggregator)
+	_, err := a.Drain()
+	assert(t, err == nil, "should not return an error")
+}
