@@ -10,13 +10,10 @@ import (
 // Constants and default configuration take from:
 // github.com/awslabs/amazon-kinesis-producer/.../KinesisProducerConfiguration.java
 const (
-	maxRecordSize        = 1 << 20 // 1MiB
-	maxRequestSize       = 5 << 20 // 5MiB
-	maxRecordsPerRequest = 500
-	maxAggregationSize   = 51200 // 50KB
-	// The KinesisProducerConfiguration set the default to 4294967295L;
-	// it's kinda odd, because the maxAggregationSize is limit to 51200L;
-	maxAggregationCount   = 4294967295
+	maxRecordSize         = 1 << 20 // 1MiB
+	maxRequestSize        = 5 << 20 // 5MiB
+	maxRecordsPerRequest  = 500
+	maxAggregationSize    = 51200 // 50KB
 	defaultMaxConnections = 24
 	defaultFlushInterval  = 5 * time.Second
 )
