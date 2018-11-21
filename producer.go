@@ -8,10 +8,10 @@ package producer
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/jpillora/backoff"
 )
@@ -92,7 +92,7 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		p.Lock()
 		if needToDrain {
 			if record, err = p.aggregator.Drain(); err != nil {
-				p.Logger.WithError(err).Error("drain aggregator")
+				p.Logger.Error("drain aggregator", err)
 			}
 		}
 		p.aggregator.Put(data, partitionKey)
@@ -129,7 +129,7 @@ func (p *Producer) NotifyFailures() <-chan *FailureRecord {
 
 // Start the producer
 func (p *Producer) Start() {
-	p.Logger.WithField("stream", p.StreamName).Info("starting producer")
+	p.Logger.Info("starting producer", LogValue{"stream", p.StreamName})
 	go p.loop()
 }
 
@@ -138,7 +138,7 @@ func (p *Producer) Stop() {
 	p.Lock()
 	p.stopped = true
 	p.Unlock()
-	p.Logger.WithField("backlog", len(p.records)).Info("stopping producer")
+	p.Logger.Info("stopping producer", LogValue{"backlog", len(p.records)})
 
 	// drain
 	if record, ok := p.drainIfNeed(); ok {
@@ -225,7 +225,7 @@ func (p *Producer) drainIfNeed() (*kinesis.PutRecordsRequestEntry, bool) {
 		record, err := p.aggregator.Drain()
 		p.Unlock()
 		if err != nil {
-			p.Logger.WithError(err).Error("drain aggregator")
+			p.Logger.Error("drain aggregator", err)
 		} else {
 			return record, true
 		}
@@ -243,14 +243,14 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 	defer p.semaphore.release()
 
 	for {
-		p.Logger.WithField("reason", reason).Infof("flush %v records", len(records))
+		p.Logger.Info("flushing records", LogValue{"reason", reason}, LogValue{"records", len(records)})
 		out, err := p.Client.PutRecords(&kinesis.PutRecordsInput{
 			StreamName: &p.StreamName,
 			Records:    records,
 		})
 
 		if err != nil {
-			p.Logger.WithError(err).Error("flush")
+			p.Logger.Error("flush", err)
 			p.RLock()
 			notify := p.notify
 			p.RUnlock()
@@ -262,15 +262,15 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 
 		if p.Verbose {
 			for i, r := range out.Records {
-				fields := make(logrus.Fields)
+				values := make([]LogValue, 2)
 				if r.ErrorCode != nil {
-					fields["ErrorCode"] = *r.ErrorCode
-					fields["ErrorMessage"] = *r.ErrorMessage
+					values[0] = LogValue{"ErrorCode", *r.ErrorCode}
+					values[1] = LogValue{"ErrorMessage", *r.ErrorMessage}
 				} else {
-					fields["ShardId"] = *r.ShardId
-					fields["SequenceNumber"] = *r.SequenceNumber
+					values[0] = LogValue{"ShardId", *r.ShardId}
+					values[1] = LogValue{"SequenceNumber", *r.SequenceNumber}
 				}
-				p.Logger.WithFields(fields).Infof("Result[%d]", i)
+				p.Logger.Info(fmt.Sprintf("Result[%d]", i), values...)
 			}
 		}
 
@@ -281,11 +281,11 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 
 		duration := b.Duration()
 
-		p.Logger.WithFields(logrus.Fields{
-			"failures": failed,
-			"backoff":  duration.String(),
-		}).Warn("put failures")
-
+		p.Logger.Info(
+			"put failures",
+			LogValue{"failures", failed},
+			LogValue{"backoff", duration.String()},
+		)
 		time.Sleep(duration)
 
 		// change the logging state for the next itertion

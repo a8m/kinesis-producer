@@ -3,6 +3,7 @@
 and using the same aggregation format that [KPL][kpl-url] use.  
 
 ### Useful links
+- [Documentation][godoc-url]
 - [Aggregation format][aggregation-format-url]
 - [Considerations When Using KPL Aggregation][kpl-aggregation]
 - [Consumer De-aggregation][de-aggregation]
@@ -22,13 +23,11 @@ import (
 )
 
 func main() {
-	log := logrus.New()
 	client := kinesis.New(session.New(aws.NewConfig()))
 	pr := producer.New(&producer.Config{
 		StreamName:   "test",
 		BacklogCount: 2000,
-		Client:       client,
-		Logger:       log,
+		Client:       client
 	})
 
 	pr.Start()
@@ -55,6 +54,45 @@ func main() {
 }
 ```
 
+#### Specifying logger implementation
+`producer.Config` takes an optional `logging.Logger` implementation.
+
+##### Using a custom logger
+```go
+customLogger := &CustomLogger{}
+
+&producer.Config{
+  StreamName:   "test",
+  BacklogCount: 2000,
+  Client:       client,
+  Logger:       customLogger,
+}
+```
+
+#### Using logrus
+
+```go
+import (
+	"github.com/sirupsen/logrus"
+	producer "github.com/a8m/kinesis-producer"
+	"github.com/a8m/kinesis-producer/loggers"
+)
+
+log := logrus.New()
+
+&producer.Config{
+  StreamName:   "test",
+  BacklogCount: 2000,
+  Client:       client,
+  Logger:       loggers.Logrus(log),
+}
+```
+
+kinesis-producer ships with three logger implementations.
+
+- `producer.Standard` used the standard library logger
+- `loggers.Logrus` uses logrus logger
+- `loggers.Zap` uses zap logger
 
 ### License
 MIT

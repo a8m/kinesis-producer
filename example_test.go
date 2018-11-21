@@ -1,22 +1,23 @@
 package producer
 
 import (
+	"log"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
-	"github.com/sirupsen/logrus"
 )
 
 func ExampleSimple() {
-	log := logrus.New()
+	logger := &StdLogger{log.New(os.Stdout, "", log.LstdFlags)}
 	client := kinesis.New(session.New(aws.NewConfig()))
 	pr := New(&Config{
 		StreamName:   "test",
 		BacklogCount: 2000,
 		Client:       client,
-		Logger:       log,
+		Logger:       logger,
 	})
 
 	pr.Start()
@@ -25,7 +26,7 @@ func ExampleSimple() {
 	go func() {
 		for r := range pr.NotifyFailures() {
 			// r contains `Data`, `PartitionKey` and `Error()`
-			log.Error(r)
+			logger.Error("detected put failure", r.error)
 		}
 	}()
 
@@ -33,7 +34,7 @@ func ExampleSimple() {
 		for i := 0; i < 5000; i++ {
 			err := pr.Put([]byte("foo"), "bar")
 			if err != nil {
-				log.WithError(err).Fatal("error producing")
+				logger.Error("error producing", err)
 			}
 		}
 	}()
