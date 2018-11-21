@@ -1,10 +1,11 @@
 package producer
 
 import (
+	"log"
+	"os"
 	"time"
 
 	k "github.com/aws/aws-sdk-go/service/kinesis"
-	"github.com/sirupsen/logrus"
 )
 
 // Constants and default configuration take from:
@@ -54,8 +55,8 @@ type Config struct {
 	// Number of requests to sent concurrently. Default to 24.
 	MaxConnections int
 
-	// Logger is the logger used. Default to logrus.Log.
-	Logger logrus.FieldLogger
+	// Logger is the logger used. Default to producer.Logger.
+	Logger Logger
 
 	// Enabling verbose logging. Default to false.
 	Verbose bool
@@ -67,7 +68,7 @@ type Config struct {
 // defaults for configuration
 func (c *Config) defaults() {
 	if c.Logger == nil {
-		c.Logger = logrus.New()
+		c.Logger = &StdLogger{log.New(os.Stdout, "", log.LstdFlags)}
 	}
 	if c.BatchCount == 0 {
 		c.BatchCount = maxRecordsPerRequest
