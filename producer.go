@@ -23,15 +23,25 @@ var (
 	ErrRecordSizeExceeded  = errors.New("Data must be less than or equal to 1MB in size")
 )
 
+// Flush reasons
+var (
+	FlushReasonBatchSize   = "batch_size"
+	FlushReasonBatchLength = "batch_length"
+	FlushReasonDrain       = "drain"
+	FlushReasonInterval    = "interval"
+	FlushReasonRetry       = "interval"
+)
+
 // Producer batches records.
 type Producer struct {
 	sync.RWMutex
 	*Config
 	aggregator *Aggregator
 	semaphore  semaphore
-	records    chan *kinesis.PutRecordsRequestEntry
+	batches    chan *AggregatedBatch
 	failure    chan *FailureRecord
 	done       chan struct{}
+	hooks      Hooks
 
 	// Current state of the Producer
 	// notify set to true after calling to `NotifyFailures`
@@ -42,12 +52,16 @@ type Producer struct {
 }
 
 // New creates new producer with the given config.
-func New(config *Config) *Producer {
+func New(config *Config, hooks Hooks) *Producer {
 	config.defaults()
+	if hooks == nil {
+		hooks = &noopHooks{}
+	}
 	return &Producer{
 		Config:     config,
 		done:       make(chan struct{}),
-		records:    make(chan *kinesis.PutRecordsRequestEntry, config.BacklogCount),
+		hooks:      hooks,
+		batches:    make(chan *AggregatedBatch, config.BacklogCount),
 		semaphore:  make(chan struct{}, config.MaxConnections),
 		aggregator: new(Aggregator),
 	}
@@ -77,21 +91,25 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 	// if the record size is bigger than aggregation size
 	// handle it as a simple kinesis record
 	if nbytes > p.AggregateBatchSize {
-		p.records <- &kinesis.PutRecordsRequestEntry{
-			Data:         data,
-			PartitionKey: &partitionKey,
+		p.batches <- &AggregatedBatch{
+			Records: &kinesis.PutRecordsRequestEntry{
+				Data:         data,
+				PartitionKey: &partitionKey,
+			},
+			Count: 1,
+			Size:  nbytes,
 		}
 	} else {
 		p.RLock()
 		needToDrain := nbytes+p.aggregator.Size() > p.AggregateBatchSize || p.aggregator.Count() >= p.AggregateBatchCount
 		p.RUnlock()
 		var (
-			record *kinesis.PutRecordsRequestEntry
-			err    error
+			batch *AggregatedBatch
+			err   error
 		)
 		p.Lock()
 		if needToDrain {
-			if record, err = p.aggregator.Drain(); err != nil {
+			if batch, err = p.aggregator.Drain(); err != nil {
 				p.Logger.Error("drain aggregator", err)
 			}
 		}
@@ -100,8 +118,8 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		// release the lock and then pipe the record to the records channel
 		// we did it, because the "send" operation blocks when the backlog is full
 		// and this can cause deadlock(when we never release the lock)
-		if needToDrain && record != nil {
-			p.records <- record
+		if needToDrain && batch != nil {
+			p.batches <- batch
 		}
 	}
 	return nil
@@ -138,14 +156,14 @@ func (p *Producer) Stop() {
 	p.Lock()
 	p.stopped = true
 	p.Unlock()
-	p.Logger.Info("stopping producer", LogValue{"backlog", len(p.records)})
+	p.Logger.Info("stopping producer", LogValue{"backlog batches", len(p.batches)})
 
 	// drain
-	if record, ok := p.drainIfNeed(); ok {
-		p.records <- record
+	if batch, ok := p.drainIfNeed(); ok {
+		p.batches <- batch
 	}
 	p.done <- struct{}{}
-	close(p.records)
+	close(p.batches)
 
 	// wait
 	<-p.done
@@ -163,28 +181,32 @@ func (p *Producer) Stop() {
 // loop and flush at the configured interval, or when the buffer is exceeded.
 func (p *Producer) loop() {
 	size := 0
+	count := 0
 	drain := false
 	buf := make([]*kinesis.PutRecordsRequestEntry, 0, p.BatchCount)
 	tick := time.NewTicker(p.FlushInterval)
 
 	flush := func(msg string) {
 		p.semaphore.acquire()
-		go p.flush(buf, msg)
+		go p.flush(buf, count, msg)
 		buf = nil
 		size = 0
+		count = 0
 	}
 
-	bufAppend := func(record *kinesis.PutRecordsRequestEntry) {
+	batchAppend := func(batch *AggregatedBatch) {
 		// the record size limit applies to the total size of the
 		// partition key and data blob.
-		rsize := len(record.Data) + len([]byte(*record.PartitionKey))
-		if size+rsize > p.BatchSize {
-			flush("batch size")
+		p.hooks.OnDrain(int64(batch.Size), int64(batch.Count))
+
+		if size+batch.Size > p.BatchSize {
+			flush(FlushReasonBatchSize)
 		}
-		size += rsize
-		buf = append(buf, record)
+		size += batch.Size
+		count += batch.Count
+		buf = append(buf, batch.Records)
 		if len(buf) >= p.BatchCount {
-			flush("batch length")
+			flush(FlushReasonBatchLength)
 		}
 	}
 
@@ -193,22 +215,22 @@ func (p *Producer) loop() {
 
 	for {
 		select {
-		case record, ok := <-p.records:
+		case batch, ok := <-p.batches:
 			if drain && !ok {
 				if size > 0 {
-					flush("drain")
+					flush(FlushReasonDrain)
 				}
 				p.Logger.Info("backlog drained")
 				return
 			}
-			bufAppend(record)
+			batchAppend(batch)
 		case <-tick.C:
-			if record, ok := p.drainIfNeed(); ok {
-				bufAppend(record)
+			if batch, ok := p.drainIfNeed(); ok {
+				batchAppend(batch)
 			}
 			// if the buffer is still containing records
 			if size > 0 {
-				flush("interval")
+				flush(FlushReasonInterval)
 			}
 		case <-p.done:
 			drain = true
@@ -216,18 +238,18 @@ func (p *Producer) loop() {
 	}
 }
 
-func (p *Producer) drainIfNeed() (*kinesis.PutRecordsRequestEntry, bool) {
+func (p *Producer) drainIfNeed() (*AggregatedBatch, bool) {
 	p.RLock()
 	needToDrain := p.aggregator.Size() > 0
 	p.RUnlock()
 	if needToDrain {
 		p.Lock()
-		record, err := p.aggregator.Drain()
+		batch, err := p.aggregator.Drain()
 		p.Unlock()
 		if err != nil {
 			p.Logger.Error("drain aggregator", err)
 		} else {
-			return record, true
+			return batch, true
 		}
 	}
 	return nil, false
@@ -235,7 +257,7 @@ func (p *Producer) drainIfNeed() (*kinesis.PutRecordsRequestEntry, bool) {
 
 // flush records and retry failures if necessary.
 // for example: when we get "ProvisionedThroughputExceededException"
-func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason string) {
+func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, count int, reason string) {
 	b := &backoff.Backoff{
 		Jitter: true,
 	}
@@ -243,6 +265,7 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 	defer p.semaphore.release()
 
 	for {
+		startTime := time.Now()
 		p.Logger.Info("flushing records", LogValue{"reason", reason}, LogValue{"records", len(records)})
 		out, err := p.Client.PutRecords(&kinesis.PutRecordsInput{
 			StreamName: &p.StreamName,
@@ -260,17 +283,23 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 			return
 		}
 
-		if p.Verbose {
-			for i, r := range out.Records {
-				values := make([]LogValue, 2)
-				if r.ErrorCode != nil {
-					values[0] = LogValue{"ErrorCode", *r.ErrorCode}
-					values[1] = LogValue{"ErrorMessage", *r.ErrorMessage}
-				} else {
-					values[0] = LogValue{"ShardId", *r.ShardId}
-					values[1] = LogValue{"SequenceNumber", *r.SequenceNumber}
-				}
-				p.Logger.Info(fmt.Sprintf("Result[%d]", i), values...)
+		putLatencyMs := int64(time.Since(startTime) / time.Millisecond)
+		p.hooks.OnPutRecords(int64(len(records)), int64(count), putLatencyMs, reason)
+
+		for i, r := range out.Records {
+			if r.ErrorCode != nil {
+				p.hooks.OnPutErr(*r.ErrorCode)
+				p.Logger.Info(
+					fmt.Sprintf("Result[%d]", i),
+					LogValue{"ErrorCode", *r.ErrorCode},
+					LogValue{"ErrorMessage", *r.ErrorMessage},
+				)
+			} else if p.Verbose {
+				p.Logger.Info(
+					fmt.Sprintf("Result[%d]", i),
+					LogValue{"ShardId", *r.ShardId},
+					LogValue{"SequenceNumber", *r.SequenceNumber},
+				)
 			}
 		}
 
@@ -289,7 +318,7 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 		time.Sleep(duration)
 
 		// change the logging state for the next itertion
-		reason = "retry"
+		reason = FlushReasonRetry
 		records = failures(records, out.Records)
 	}
 }
