@@ -83,7 +83,7 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		}
 	} else {
 		p.RLock()
-		needToDrain := nbytes+p.aggregator.Size() > p.AggregateBatchSize || p.aggregator.Count() >= p.AggregateBatchCount
+		needToDrain := nbytes+p.aggregator.Size()+20 > maxRecordSize || p.aggregator.Count() >= p.AggregateBatchCount
 		p.RUnlock()
 		var (
 			record *kinesis.PutRecordsRequestEntry
