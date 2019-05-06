@@ -73,9 +73,9 @@ func (c *Config) defaults() {
 		c.Logger = &StdLogger{log.New(os.Stdout, "", log.LstdFlags)}
 	}
 	if c.BatchCount == 0 {
-		c.BatchCount = maxAggregationCount
+		c.BatchCount = maxRecordsPerRequest
 	}
-	falseOrPanic(c.BatchCount > maxAggregationCount, "kinesis: BatchCount exceeds 500")
+	falseOrPanic(c.BatchCount > maxRecordsPerRequest, "kinesis: BatchCount exceeds 500")
 	if c.BatchSize == 0 {
 		c.BatchSize = maxRequestSize
 	}
