@@ -3,7 +3,7 @@ package kpzap
 import (
 	"go.uber.org/zap"
 
-	producer "github.com/defendertx/kinesis-producer"
+	producer "github.com/a8m/kinesis-producer"
 )
 
 // Logger implements a zap.Logger logger for kinesis-producer
