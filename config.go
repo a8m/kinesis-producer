@@ -14,13 +14,11 @@ const (
 	maxRecordSize          = 1 << 20 // 1MiB
 	maxRequestSize         = 5 << 20 // 5MiB
 	maxRecordsPerRequest   = 500
-	defaultAggregationSize = 51200   // 50k
 	maxAggregationSize     = 1048576 // 1MiB
-	// The KinesisProducerConfiguration set the default to 4294967295L;
-	// it's kinda odd, because the maxAggregationSize is limit to 51200L;
-	maxAggregationCount   = 4294967295
-	defaultMaxConnections = 24
-	defaultFlushInterval  = 5 * time.Second
+	maxAggregationCount    = 4294967295
+	defaultAggregationSize = 51200 // 50k
+	defaultMaxConnections  = 24
+	defaultFlushInterval   = 5 * time.Second
 )
 
 // Putter is the interface that wraps the KinesisAPI.PutRecords method.
