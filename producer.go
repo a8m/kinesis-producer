@@ -7,6 +7,7 @@
 package producer
 
 import (
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"sync"
@@ -83,7 +84,7 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		}
 	} else {
 		p.RLock()
-		needToDrain := nbytes+p.aggregator.Size() > p.AggregateBatchSize || p.aggregator.Count() >= p.AggregateBatchCount
+		needToDrain := nbytes+p.aggregator.Size()+md5.Size+len(magicNumber) > maxRecordSize || p.aggregator.Count() >= p.AggregateBatchCount
 		p.RUnlock()
 		var (
 			record *kinesis.PutRecordsRequestEntry

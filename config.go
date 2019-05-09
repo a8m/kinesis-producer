@@ -11,15 +11,14 @@ import (
 // Constants and default configuration take from:
 // github.com/awslabs/amazon-kinesis-producer/.../KinesisProducerConfiguration.java
 const (
-	maxRecordSize        = 1 << 20 // 1MiB
-	maxRequestSize       = 5 << 20 // 5MiB
-	maxRecordsPerRequest = 500
-	maxAggregationSize   = 51200 // 50KB
-	// The KinesisProducerConfiguration set the default to 4294967295L;
-	// it's kinda odd, because the maxAggregationSize is limit to 51200L;
-	maxAggregationCount   = 4294967295
-	defaultMaxConnections = 24
-	defaultFlushInterval  = 5 * time.Second
+	maxRecordSize          = 1 << 20 // 1MiB
+	maxRequestSize         = 5 << 20 // 5MiB
+	maxRecordsPerRequest   = 500
+	maxAggregationSize     = 1048576 // 1MiB
+	maxAggregationCount    = 4294967295
+	defaultAggregationSize = 51200 // 50k
+	defaultMaxConnections  = 24
+	defaultFlushInterval   = 5 * time.Second
 )
 
 // Putter is the interface that wraps the KinesisAPI.PutRecords method.
@@ -46,7 +45,8 @@ type Config struct {
 	// AggregateBatchCount determine the maximum number of items to pack into an aggregated record.
 	AggregateBatchCount int
 
-	// AggregationBatchSize determine the maximum number of bytes to pack into an aggregated record.
+	// AggregationBatchSize determine the maximum number of bytes to pack into an aggregated record. User records larger
+	// than this will bypass aggregation.
 	AggregateBatchSize int
 
 	// BacklogCount determines the channel capacity before Put() will begin blocking. Default to `BatchCount`.
@@ -86,7 +86,7 @@ func (c *Config) defaults() {
 	}
 	falseOrPanic(c.AggregateBatchCount > maxAggregationCount, "kinesis: AggregateBatchCount exceeds 4294967295")
 	if c.AggregateBatchSize == 0 {
-		c.AggregateBatchSize = maxAggregationSize
+		c.AggregateBatchSize = defaultAggregationSize
 	}
 	falseOrPanic(c.AggregateBatchSize > maxAggregationSize, "kinesis: AggregateBatchSize exceeds 50KB")
 	if c.MaxConnections == 0 {
