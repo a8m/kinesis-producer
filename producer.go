@@ -74,7 +74,7 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 	if l := len(partitionKey); l < 1 || l > 256 {
 		return ErrIllegalPartitionKey
 	}
-	nbytes := len(data) + len([]byte(partitionKey)) + 8
+	nbytes := len(data) + len([]byte(partitionKey))
 	// if the record size is bigger than aggregation size
 	// handle it as a simple kinesis record
 	if nbytes > p.AggregateBatchSize {
@@ -84,11 +84,11 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		}
 	} else {
 		p.RLock()
-		fmt.Printf("PARTITION_KEY: %s, NBYTES: %d, AGG_SIZE: %d, MD5: %d, MAGIC_NUMBER: %d, MAX_RECORD_SIZE: %d AGGREGATOR_COUNT: %d, AGGREGATE_BATCH_COUNT: %d\n", partitionKey,
-			nbytes, p.aggregator.Size(), md5.Size, 4, maxRecordSize, p.aggregator.Count(), p.AggregateBatchCount)
+		//fmt.Printf("PARTITION_KEY: %s, NBYTES: %d, AGG_SIZE: %d, MD5: %d, MAGIC_NUMBER: %d, MAX_RECORD_SIZE: %d AGGREGATOR_COUNT: %d, AGGREGATE_BATCH_COUNT: %d\n", partitionKey,
+		//	nbytes, p.aggregator.Size(), md5.Size, 4, maxRecordSize, p.aggregator.Count(), p.AggregateBatchCount)
 
-		needToDrain := nbytes+p.aggregator.Size()+md5.Size+len(magicNumber) > maxRecordSize || p.aggregator.Count() >= p.AggregateBatchCount
-		fmt.Printf("PARTITION_KEY: %s, NEED TO DRAIN: %+v\n", partitionKey, needToDrain)
+		needToDrain := nbytes+p.aggregator.Size()+md5.Size+len(magicNumber)+8 > maxRecordSize || p.aggregator.Count() >= p.AggregateBatchCount
+		//fmt.Printf("PARTITION_KEY: %s, NEED TO DRAIN: %+v\n", partitionKey, needToDrain)
 		p.RUnlock()
 		var (
 			record *kinesis.PutRecordsRequestEntry
