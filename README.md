@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/NielsenEngineering/kinesis-producer"
+	"github.com/a8m/kinesis-producer"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
@@ -74,8 +74,8 @@ customLogger := &CustomLogger{}
 ```go
 import (
 	"github.com/sirupsen/logrus"
-	producer "github.com/NielsenEngineering/kinesis-producer"
-	"github.com/NielsenEngineering/kinesis-producer/loggers"
+	producer "github.com/a8m/kinesis-producer"
+	"github.com/a8m/kinesis-producer/loggers"
 )
 
 log := logrus.New()

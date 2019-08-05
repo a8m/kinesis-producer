@@ -1,4 +1,4 @@
-module github.com/NielsenEngineering/kinesis-producer
+module github.com/a8m/kinesis-producer
 
 require (
 	github.com/aws/aws-sdk-go v1.21.10
