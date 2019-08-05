@@ -36,7 +36,7 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 	// the same partition key.
 	// later, we will add shard-mapper same as the KPL use.
 	// see: https://github.com/a8m/kinesis-producer/issues/1
-	fmt.Printf("SIZE OF BUFFER BEFORE PUT: %d\n", a.nbytes)
+	fmt.Printf("PARTITION_KEY: %s, SIZE OF BUFFER BEFORE PUT: %d\n", partitionKey, a.nbytes)
 	if len(a.pkeys) == 0 {
 		a.pkeys = []string{partitionKey}
 		a.nbytes += len([]byte(partitionKey))
@@ -50,7 +50,7 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 	})
 	a.nbytes += len(data)
 
-	fmt.Printf("SIZE OF BUFFER AFTER PUT: %d\n", a.nbytes)
+	fmt.Printf("PARTITION_KEY: %s, SIZE OF BUFFER AFTER PUT: %d\n", partitionKey, a.nbytes)
 }
 
 // Drain create an aggregated `kinesis.PutRecordsRequestEntry`
