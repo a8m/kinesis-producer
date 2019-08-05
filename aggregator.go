@@ -40,6 +40,8 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 		a.nbytes += len([]byte(partitionKey))
 	}
 	keyIndex := uint64(len(a.pkeys) - 1)
+
+	a.nbytes += 8
 	a.buf = append(a.buf, &Record{
 		Data:              data,
 		PartitionKeyIndex: &keyIndex,
