@@ -1,9 +1,8 @@
 module github.com/NielsenEngineering/kinesis-producer
 
 require (
-	github.com/aws/aws-sdk-go v1.21.9
+	github.com/aws/aws-sdk-go v1.21.10
 	github.com/golang/protobuf v1.3.2
-	github.com/google/uuid v1.1.1
 	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/sirupsen/logrus v1.4.2
