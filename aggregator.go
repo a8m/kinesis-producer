@@ -3,6 +3,7 @@ package producer
 import (
 	"bytes"
 	"crypto/md5"
+	"fmt"
 
 	k "github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/golang/protobuf/proto"
@@ -35,8 +36,9 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 	// the same partition key.
 	// later, we will add shard-mapper same as the KPL use.
 	// see: https://github.com/a8m/kinesis-producer/issues/1
+	fmt.Printf("SIZE OF BUFFER BEFORE PUT: %d\n", a.nbytes)
 	if len(a.pkeys) == 0 {
-		a.pkeys = append(a.pkeys, partitionKey)
+		a.pkeys = []string{partitionKey}
 		a.nbytes += len([]byte(partitionKey))
 	}
 	keyIndex := uint64(len(a.pkeys) - 1)
@@ -47,6 +49,8 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 		PartitionKeyIndex: &keyIndex,
 	})
 	a.nbytes += len(data)
+
+	fmt.Printf("SIZE OF BUFFER AFTER PUT: %d\n", a.nbytes)
 }
 
 // Drain create an aggregated `kinesis.PutRecordsRequestEntry`
