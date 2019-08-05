@@ -37,8 +37,10 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 	// see: https://github.com/a8m/kinesis-producer/issues/1
 	if len(a.pkeys) == 0 {
 		a.pkeys = append(a.pkeys, partitionKey)
-		a.nbytes += len([]byte(partitionKey))
 	}
+
+	a.nbytes += len([]byte(partitionKey))
+
 	keyIndex := uint64(len(a.pkeys) - 1)
 	a.buf = append(a.buf, &Record{
 		Data:              data,
