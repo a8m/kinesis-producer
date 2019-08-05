@@ -1,7 +1,5 @@
 module github.com/NielsenEngineering/kinesis-producer
 
-go 1.12
-
 require (
 	github.com/aws/aws-sdk-go v1.21.9
 	github.com/golang/protobuf v1.3.2
