@@ -19,6 +19,7 @@ const (
 	defaultAggregationSize = 51200 // 50k
 	defaultMaxConnections  = 24
 	defaultFlushInterval   = 5 * time.Second
+	partitionKeyIndexSize  = 8
 )
 
 // Putter is the interface that wraps the KinesisAPI.PutRecords method.
