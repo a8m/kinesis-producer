@@ -35,7 +35,7 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 	a.nbytes += len([]byte(partitionKey))
 	keyIndex := uint64(len(a.pkeys) - 1)
 
-	a.nbytes++ // message index and wire type
+	a.nbytes++ // protobuf message index and wire type
 	a.nbytes += partitionKeyIndexSize
 	a.buf = append(a.buf, &Record{
 		Data:              data,
