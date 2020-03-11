@@ -1,4 +1,4 @@
-module github.com/a8m/kinesis-producer
+module github.com/ouzi-dev/kinesis-producer
 
 go 1.14
 
