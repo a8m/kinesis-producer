@@ -40,17 +40,20 @@ type Producer struct {
 	// stopped set to true after `Stop`ing the Producer.
 	// This will prevent from user to `Put` any new data.
 	stopped bool
+	metrics *prometheusMetrics
 }
 
 // New creates new producer with the given config.
 func New(config *Config) *Producer {
 	config.defaults()
+	metrics := getMetrics(config.Logger)
 	return &Producer{
 		Config:     config,
 		done:       make(chan struct{}),
 		records:    make(chan *kinesis.PutRecordsRequestEntry, config.BacklogCount),
 		semaphore:  make(chan struct{}, config.MaxConnections),
 		aggregator: new(Aggregator),
+		metrics:    metrics,
 	}
 }
 
@@ -74,10 +77,14 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 	if l := len(partitionKey); l < 1 || l > 256 {
 		return ErrIllegalPartitionKey
 	}
-	nbytes := len(data) + len([]byte(partitionKey))
+	p.metrics.userRecordsPutCnt.WithLabelValues(p.StreamName).Inc()
+	dataBytes := len(data)
+	p.metrics.userRecordsDataPutSz.WithLabelValues(p.StreamName).Observe(float64(dataBytes))
+	nbytes := dataBytes + len([]byte(partitionKey))
 	// if the record size is bigger than aggregation size
 	// handle it as a simple kinesis record
 	if nbytes > p.AggregateBatchSize {
+		p.metrics.userRecordsPerKinesisRecordSum.WithLabelValues(p.Config.StreamName).Observe(1)
 		p.records <- &kinesis.PutRecordsRequestEntry{
 			Data:         data,
 			PartitionKey: &partitionKey,
@@ -86,10 +93,12 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		p.Lock()
 		needToDrain := nbytes+p.aggregator.Size()+md5.Size+len(magicNumber)+partitionKeyIndexSize > maxRecordSize || p.aggregator.Count() >= p.AggregateBatchCount
 		var (
-			record *kinesis.PutRecordsRequestEntry
-			err    error
+			record     *kinesis.PutRecordsRequestEntry
+			err        error
+			numRecords int
 		)
 		if needToDrain {
+			numRecords = p.aggregator.Count()
 			if record, err = p.aggregator.Drain(); err != nil {
 				p.Logger.Error("drain aggregator", err)
 			}
@@ -100,6 +109,7 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		// we did it, because the "send" operation blocks when the backlog is full
 		// and this can cause deadlock(when we never release the lock)
 		if needToDrain && record != nil {
+			p.metrics.userRecordsPerKinesisRecordSum.WithLabelValues(p.Config.StreamName).Observe(float64(numRecords))
 			p.records <- record
 		}
 	}
@@ -140,7 +150,9 @@ func (p *Producer) Stop() {
 	p.Logger.Info("stopping producer", LogValue{"backlog", len(p.records)})
 
 	// drain
+	numRecords := p.aggregator.Count()
 	if record, ok := p.drainIfNeed(); ok {
+		p.metrics.userRecordsPerKinesisRecordSum.WithLabelValues(p.Config.StreamName).Observe(float64(numRecords))
 		p.records <- record
 	}
 	p.done <- struct{}{}
@@ -161,22 +173,28 @@ func (p *Producer) Stop() {
 
 // loop and flush at the configured interval, or when the buffer is exceeded.
 func (p *Producer) loop() {
+	start := time.Now()
 	size := 0
 	drain := false
 	buf := make([]*kinesis.PutRecordsRequestEntry, 0, p.BatchCount)
 	tick := time.NewTicker(p.FlushInterval)
 
 	flush := func(msg string) {
+		elapsed := float64(time.Since(start) / time.Millisecond)
+		p.metrics.bufferingTimeDur.WithLabelValues(p.Config.StreamName).Observe(elapsed)
 		p.semaphore.acquire()
 		go p.flush(buf, msg)
 		buf = nil
 		size = 0
+		start = time.Now()
 	}
 
 	bufAppend := func(record *kinesis.PutRecordsRequestEntry) {
+		dataSize := len(record.Data)
+		p.metrics.kinesisRecordsDataPutSz.WithLabelValues(p.Config.StreamName).Observe(float64(dataSize))
 		// the record size limit applies to the total size of the
 		// partition key and data blob.
-		rsize := len(record.Data) + len([]byte(*record.PartitionKey))
+		rsize := dataSize + len([]byte(*record.PartitionKey))
 		if size+rsize > p.BatchSize {
 			flush("batch size")
 		}
@@ -241,12 +259,19 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 
 	defer p.semaphore.release()
 
+	numRetries := 0
+	numRecords := len(records)
+
 	for {
 		p.Logger.Info("flushing records", LogValue{"reason", reason}, LogValue{"records", len(records)})
+		start := time.Now()
+		p.metrics.kinesisRecordsPerPutRecordsRequestSum.WithLabelValues(p.Config.StreamName).Observe(float64(len(records)))
 		out, err := p.Client.PutRecords(&kinesis.PutRecordsInput{
 			StreamName: &p.StreamName,
 			Records:    records,
 		})
+		elapsed := float64(time.Since(start) / time.Millisecond)
+		p.metrics.requestTimeDur.WithLabelValues(p.Config.StreamName).Observe(elapsed)
 
 		if err != nil {
 			p.Logger.Error("flush", err)
@@ -259,22 +284,32 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 			return
 		}
 
-		if p.Verbose {
-			for i, r := range out.Records {
-				values := make([]LogValue, 2)
-				if r.ErrorCode != nil {
-					values[0] = LogValue{"ErrorCode", *r.ErrorCode}
-					values[1] = LogValue{"ErrorMessage", *r.ErrorMessage}
-				} else {
-					values[0] = LogValue{"ShardId", *r.ShardId}
-					values[1] = LogValue{"SequenceNumber", *r.SequenceNumber}
-				}
+		for i, r := range out.Records {
+			values := make([]LogValue, 2)
+			if r.ErrorCode != nil {
+				errorCode := *r.ErrorCode
+				p.metrics.errorsByCodeCnt.WithLabelValues(p.Config.StreamName, errorCode).Inc()
+				p.metrics.allErrorsCnt.WithLabelValues(p.Config.StreamName).Inc()
+				values[0] = LogValue{"ErrorCode", *r.ErrorCode}
+				values[1] = LogValue{"ErrorMessage", *r.ErrorMessage}
+			} else {
+				shardID := *r.ShardId
+				p.metrics.kinesisRecordsPutCnt.WithLabelValues(p.Config.StreamName, shardID).Inc()
+				values[0] = LogValue{"ShardId", shardID}
+				values[1] = LogValue{"SequenceNumber", *r.SequenceNumber}
+			}
+			if p.Verbose {
 				p.Logger.Info(fmt.Sprintf("Result[%d]", i), values...)
 			}
 		}
 
 		failed := *out.FailedRecordCount
 		if failed == 0 {
+			if numRetries != 0 {
+				p.metrics.retriesPerRecordSum.WithLabelValues(p.Config.StreamName).Observe(float64(numRecords) / float64(numRetries))
+			} else {
+				p.metrics.retriesPerRecordSum.WithLabelValues(p.Config.StreamName).Observe(0)
+			}
 			return
 		}
 
@@ -290,6 +325,7 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 		// change the logging state for the next itertion
 		reason = "retry"
 		records = failures(records, out.Records)
+		numRetries++
 	}
 }
 

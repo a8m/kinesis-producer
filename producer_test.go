@@ -107,7 +107,7 @@ var testCases = []testCase{
 						FailedRecordCount: aws.Int64(1),
 						Records: []*k.PutRecordsResultEntry{
 							{SequenceNumber: aws.String("3"), ShardId: aws.String("1")},
-							{ErrorCode: aws.String("400")},
+							{ErrorCode: aws.String("400"), ErrorMessage: aws.String("error")},
 						},
 					},
 				},
