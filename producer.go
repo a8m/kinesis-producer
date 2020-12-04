@@ -129,6 +129,10 @@ func (p *Producer) NotifyFailures() <-chan *FailureRecord {
 // Start the producer
 func (p *Producer) Start() {
 	p.Logger.Info("starting producer", LogValue{"stream", p.StreamName})
+	p.done =       make(chan struct{})
+	p.records =    make(chan *kinesis.PutRecordsRequestEntry, p.Config.BacklogCount)
+	p.semaphore =  make(chan struct{}, p.Config.MaxConnections)
+	p.notify = false
 	go p.loop()
 }
 
