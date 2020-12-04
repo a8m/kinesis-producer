@@ -24,6 +24,13 @@ var (
 	ErrRecordSizeExceeded  = errors.New("Data must be less than or equal to 1MB in size")
 )
 
+type ProducerAPI interface {
+	Put(data []byte, partitionKey string) error
+	NotifyFailures() <-chan *FailureRecord
+	Start()
+	Stop()
+}
+
 // Producer batches records.
 type Producer struct {
 	sync.RWMutex
