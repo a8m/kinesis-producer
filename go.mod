@@ -1,5 +1,7 @@
 module github.com/a8m/kinesis-producer
 
+go 1.15
+
 require (
 	github.com/aws/aws-sdk-go v1.21.10
 	github.com/golang/protobuf v1.3.2
