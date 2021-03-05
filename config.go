@@ -14,9 +14,9 @@ const (
 	maxRecordSize          = 1 << 20 // 1MiB
 	maxRequestSize         = 5 << 20 // 5MiB
 	maxRecordsPerRequest   = 500
-	maxAggregationSize     = 1048576 // 1MiB
-	maxAggregationCount    = 4294967295
-	defaultAggregationSize = 51200 // 50k
+	maxAggregationSize     = 1048576    // 1MiB
+	maxAggregationCount    = 2147483647 // FIX: Set it to math.MaxInt32 in order to build on ARM, see https://github.com/a8m/kinesis-producer/issues/4
+	defaultAggregationSize = 51200      // 50k
 	defaultMaxConnections  = 24
 	defaultFlushInterval   = 5 * time.Second
 	partitionKeyIndexSize  = 8
