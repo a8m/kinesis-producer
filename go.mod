@@ -1,4 +1,4 @@
-module github.com/a8m/kinesis-producer
+module github.com/northvolt/kinesis-producer
 
 go 1.16
 
