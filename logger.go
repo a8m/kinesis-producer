@@ -19,7 +19,7 @@ type LogValue struct {
 }
 
 func (v LogValue) String() string {
-	return fmt.Sprintf(" %s=%s", v.Name, v.Value)
+	return fmt.Sprintf(" %s=%v", v.Name, v.Value)
 }
 
 // StdLogger implements the Logger interface using standard library loggers
