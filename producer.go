@@ -180,7 +180,7 @@ func (p *Producer) loop() {
 		// the record size limit applies to the total size of the
 		// partition key and data blob.
 		rsize := len(record.Data) + len([]byte(*record.PartitionKey))
-		if size+rsize > p.BatchSize {
+		if size != 0 && size+rsize > p.BatchSize {
 			flush("batch size")
 		}
 		size += rsize
