@@ -1,18 +1,19 @@
 package producer
 
 import (
+	"context"
 	"log"
 	"os"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 )
 
 func ExampleSimple() {
 	logger := &StdLogger{log.New(os.Stdout, "", log.LstdFlags)}
-	client := kinesis.New(session.New(aws.NewConfig()))
+	cfg, _ := config.LoadDefaultConfig(context.TODO())
+	client := kinesis.NewFromConfig(cfg)
 	pr := New(&Config{
 		StreamName:   "test",
 		BacklogCount: 2000,

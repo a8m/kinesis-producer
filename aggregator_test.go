@@ -38,7 +38,7 @@ func TestAggregation(t *testing.T) {
 		wg.Done()
 	}
 	wg.Wait()
-	record, err := a.Drain()
+	record, _, err := a.Drain()
 	if err != nil {
 		t.Error(err)
 	}
@@ -59,6 +59,6 @@ func TestAggregation(t *testing.T) {
 
 func TestDrainEmptyAggregator(t *testing.T) {
 	a := new(Aggregator)
-	_, err := a.Drain()
+	_, _, err := a.Drain()
 	assert(t, err == nil, "should not return an error")
 }
