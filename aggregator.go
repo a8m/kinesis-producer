@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"crypto/md5"
 
-	k "github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ktypes "github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/golang/protobuf/proto"
 )
 
@@ -53,28 +54,28 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 // that compatible with the KCL's deaggregation logic.
 //
 // If you interested to know more about it. see: aggregation-format.md
-func (a *Aggregator) Drain() (*k.PutRecordsRequestEntry, error) {
+func (a *Aggregator) Drain() (ktypes.PutRecordsRequestEntry, bool, error) {
 	if a.nbytes == 0 {
-		return nil, nil
+		return ktypes.PutRecordsRequestEntry{}, false, nil
 	}
 	data, err := proto.Marshal(&AggregatedRecord{
 		PartitionKeyTable: a.pkeys,
 		Records:           a.buf,
 	})
 	if err != nil {
-		return nil, err
+		return ktypes.PutRecordsRequestEntry{}, false, err
 	}
 	h := md5.New()
 	h.Write(data)
 	checkSum := h.Sum(nil)
 	aggData := append(magicNumber, data...)
 	aggData = append(aggData, checkSum...)
-	entry := &k.PutRecordsRequestEntry{
+	entry := ktypes.PutRecordsRequestEntry{
 		Data:         aggData,
-		PartitionKey: &a.pkeys[0],
+		PartitionKey: aws.String(a.pkeys[0]),
 	}
 	a.clear()
-	return entry, nil
+	return entry, true, nil
 }
 
 func (a *Aggregator) clear() {
@@ -84,11 +85,11 @@ func (a *Aggregator) clear() {
 }
 
 // Test if a given entry is aggregated record.
-func isAggregated(entry *k.PutRecordsRequestEntry) bool {
+func isAggregated(entry ktypes.PutRecordsRequestEntry) bool {
 	return bytes.HasPrefix(entry.Data, magicNumber)
 }
 
-func extractRecords(entry *k.PutRecordsRequestEntry) (out []*k.PutRecordsRequestEntry) {
+func extractRecords(entry ktypes.PutRecordsRequestEntry) (out []ktypes.PutRecordsRequestEntry) {
 	src := entry.Data[len(magicNumber) : len(entry.Data)-md5.Size]
 	dest := new(AggregatedRecord)
 	err := proto.Unmarshal(src, dest)
@@ -97,7 +98,7 @@ func extractRecords(entry *k.PutRecordsRequestEntry) (out []*k.PutRecordsRequest
 	}
 	for i := range dest.Records {
 		r := dest.Records[i]
-		out = append(out, &k.PutRecordsRequestEntry{
+		out = append(out, ktypes.PutRecordsRequestEntry{
 			Data:         r.GetData(),
 			PartitionKey: &dest.PartitionKeyTable[r.GetPartitionKeyIndex()],
 		})

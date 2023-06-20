@@ -1,11 +1,12 @@
 package producer
 
 import (
+	"context"
 	"log"
 	"os"
 	"time"
 
-	k "github.com/aws/aws-sdk-go/service/kinesis"
+	k "github.com/aws/aws-sdk-go-v2/service/kinesis"
 )
 
 // Constants and default configuration take from:
@@ -24,7 +25,7 @@ const (
 
 // Putter is the interface that wraps the KinesisAPI.PutRecords method.
 type Putter interface {
-	PutRecords(*k.PutRecordsInput) (*k.PutRecordsOutput, error)
+	PutRecords(context.Context, *k.PutRecordsInput, ...func(*k.Options)) (*k.PutRecordsOutput, error)
 }
 
 // Config is the Producer configuration.
