@@ -28,4 +28,5 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
+
 )
