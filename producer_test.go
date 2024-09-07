@@ -22,7 +22,7 @@ type clientMock struct {
 	incoming  map[int][]string
 }
 
-func (c *clientMock) PutRecords(ctx context.Context, input *k.PutRecordsInput, optFns ...func(*k.Options)) (*k.PutRecordsOutput, error) {
+func (c *clientMock) PutRecords(_ context.Context, input *k.PutRecordsInput, _ ...func(*k.Options)) (*k.PutRecordsOutput, error) {
 	res := c.responses[c.calls]
 	for _, r := range input.Records {
 		c.incoming[c.calls] = append(c.incoming[c.calls], *r.PartitionKey)
