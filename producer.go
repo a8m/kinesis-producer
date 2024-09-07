@@ -247,7 +247,7 @@ func (p *Producer) flush(records []ktypes.PutRecordsRequestEntry, reason string)
 
 	for {
 		p.Logger.Info("flushing records", LogValue{"reason", reason}, LogValue{"records", len(records)})
-		out, err := p.Client.PutRecords(context.TODO(), &kinesis.PutRecordsInput{
+		out, err := p.Client.PutRecords(context.Background(), &kinesis.PutRecordsInput{
 			StreamName: aws.String(p.StreamName),
 			Records:    records,
 		})
