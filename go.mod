@@ -6,10 +6,10 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.30.5
 	github.com/aws/aws-sdk-go-v2/config v1.27.33
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.29.7
-	github.com/golang/protobuf v1.5.4
 	github.com/jpillora/backoff v1.0.0
 	github.com/sirupsen/logrus v1.9.3
 	go.uber.org/zap v1.27.0
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
