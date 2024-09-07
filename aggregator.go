@@ -54,28 +54,28 @@ func (a *Aggregator) Put(data []byte, partitionKey string) {
 // that compatible with the KCL's deaggregation logic.
 //
 // If you interested to know more about it. see: aggregation-format.md
-func (a *Aggregator) Drain() (ktypes.PutRecordsRequestEntry, bool, error) {
+func (a *Aggregator) Drain() (*ktypes.PutRecordsRequestEntry, error) {
 	if a.nbytes == 0 {
-		return ktypes.PutRecordsRequestEntry{}, false, nil
+		return nil, nil
 	}
 	data, err := proto.Marshal(&AggregatedRecord{
 		PartitionKeyTable: a.pkeys,
 		Records:           a.buf,
 	})
 	if err != nil {
-		return ktypes.PutRecordsRequestEntry{}, false, err
+		return nil, err
 	}
 	h := md5.New()
 	h.Write(data)
 	checkSum := h.Sum(nil)
 	aggData := append(magicNumber, data...)
 	aggData = append(aggData, checkSum...)
-	entry := ktypes.PutRecordsRequestEntry{
+	entry := &ktypes.PutRecordsRequestEntry{
 		Data:         aggData,
 		PartitionKey: aws.String(a.pkeys[0]),
 	}
 	a.clear()
-	return entry, true, nil
+	return entry, nil
 }
 
 func (a *Aggregator) clear() {
@@ -85,11 +85,11 @@ func (a *Aggregator) clear() {
 }
 
 // Test if a given entry is aggregated record.
-func isAggregated(entry ktypes.PutRecordsRequestEntry) bool {
+func isAggregated(entry *ktypes.PutRecordsRequestEntry) bool {
 	return bytes.HasPrefix(entry.Data, magicNumber)
 }
 
-func extractRecords(entry ktypes.PutRecordsRequestEntry) (out []ktypes.PutRecordsRequestEntry) {
+func extractRecords(entry *ktypes.PutRecordsRequestEntry) (out []ktypes.PutRecordsRequestEntry) {
 	src := entry.Data[len(magicNumber) : len(entry.Data)-md5.Size]
 	dest := new(AggregatedRecord)
 	err := proto.Unmarshal(src, dest)
