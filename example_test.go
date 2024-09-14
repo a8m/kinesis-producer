@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 )
@@ -15,7 +16,7 @@ func ExampleSimple() {
 	cfg, _ := config.LoadDefaultConfig(context.TODO())
 	client := kinesis.NewFromConfig(cfg)
 	pr := New(&Config{
-		StreamName:   "test",
+		StreamName:   aws.String("test"),
 		BacklogCount: 2000,
 		Client:       client,
 		Logger:       logger,

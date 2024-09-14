@@ -4,8 +4,11 @@ import (
 	"context"
 	"log"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	k "github.com/aws/aws-sdk-go-v2/service/kinesis"
 )
 
@@ -30,8 +33,12 @@ type Putter interface {
 
 // Config is the Producer configuration.
 type Config struct {
+
+	// StreamName is the ARN of the stream.
+	StreamARN *string
+
 	// StreamName is the Kinesis stream.
-	StreamName string
+	StreamName *string
 
 	// FlushInterval is a regular interval for flushing the buffer. Defaults to 5s.
 	FlushInterval time.Duration
@@ -98,11 +105,36 @@ func (c *Config) defaults() {
 	if c.FlushInterval == 0 {
 		c.FlushInterval = defaultFlushInterval
 	}
-	falseOrPanic(len(c.StreamName) == 0, "kinesis: StreamName length must be at least 1")
+	if c.StreamARN != nil {
+		// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecords.html#Streams-PutRecords-request-StreamARN
+		if !matchRegex(`^arn:aws.*:kinesis:.*:\d{12}:stream/\S+$`, aws.ToString(c.StreamARN)) {
+			panic(`kinesis: StreamARN must match pattern "arn:aws.*:kinesis:.*:\d{12}:stream/\S+"` + " current StreamARN: " + aws.ToString(c.StreamARN))
+		}
+		if c.StreamName != nil && !strings.HasSuffix(aws.ToString(c.StreamARN), "/"+aws.ToString(c.StreamName)) {
+			panic(`kinesis: StreamName must match the StreamArn` + " current StreamARN: " + aws.ToString(c.StreamARN) + " current StreamName: " + aws.ToString(c.StreamName))
+		}
+	} else if c.StreamName != nil {
+		// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecords.html#Streams-PutRecords-request-StreamName
+		if !matchRegex(`^[a-zA-Z0-9_.-]+$`, aws.ToString(c.StreamName)) {
+			panic(`kinesis: StreamName must match pattern "[a-zA-Z0-9_.-]+"` + " current StreamName: " + aws.ToString(c.StreamName))
+		}
+	} else {
+		// https://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecords.html#API_PutRecords
+		panic("kinesis: either StreamARN or StreamName must be set, recommended use StreamARN")
+	}
 }
 
 func falseOrPanic(p bool, msg string) {
 	if p {
 		panic(msg)
 	}
+}
+
+func matchRegex(pattern string, str string) bool {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return false
+	}
+	match := re.MatchString(str)
+	return match
 }

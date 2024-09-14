@@ -154,7 +154,7 @@ var testCases = []testCase{
 
 func TestProducer(t *testing.T) {
 	for _, test := range testCases {
-		test.config.StreamName = test.name
+		test.config.StreamName = aws.String("foo")
 		test.config.MaxConnections = 1
 		test.config.Client = test.putter
 		p := New(test.config)
@@ -181,7 +181,7 @@ func TestProducer(t *testing.T) {
 func TestNotify(t *testing.T) {
 	kError := errors.New("ResourceNotFoundException: Stream foo under account X not found")
 	p := New(&Config{
-		StreamName:          "foo",
+		StreamName:          aws.String("foo"),
 		MaxConnections:      1,
 		BatchCount:          1,
 		AggregateBatchCount: 10,
