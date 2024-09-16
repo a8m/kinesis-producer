@@ -7,13 +7,16 @@
 package producer
 
 import (
+	"context"
 	"crypto/md5"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	k "github.com/aws/aws-sdk-go-v2/service/kinesis"
+	ktypes "github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/jpillora/backoff"
 )
 
@@ -30,7 +33,7 @@ type Producer struct {
 	*Config
 	aggregator *Aggregator
 	semaphore  semaphore
-	records    chan *kinesis.PutRecordsRequestEntry
+	records    chan *ktypes.PutRecordsRequestEntry
 	failure    chan *FailureRecord
 	done       chan struct{}
 
@@ -48,7 +51,7 @@ func New(config *Config) *Producer {
 	return &Producer{
 		Config:     config,
 		done:       make(chan struct{}),
-		records:    make(chan *kinesis.PutRecordsRequestEntry, config.BacklogCount),
+		records:    make(chan *ktypes.PutRecordsRequestEntry, config.BacklogCount),
 		semaphore:  make(chan struct{}, config.MaxConnections),
 		aggregator: new(Aggregator),
 	}
@@ -78,7 +81,7 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 	// if the record size is bigger than aggregation size
 	// handle it as a simple kinesis record
 	if nbytes > p.AggregateBatchSize {
-		p.records <- &kinesis.PutRecordsRequestEntry{
+		p.records <- &ktypes.PutRecordsRequestEntry{
 			Data:         data,
 			PartitionKey: &partitionKey,
 		}
@@ -86,7 +89,7 @@ func (p *Producer) Put(data []byte, partitionKey string) error {
 		p.Lock()
 		needToDrain := nbytes+p.aggregator.Size()+md5.Size+len(magicNumber)+partitionKeyIndexSize > maxRecordSize || p.aggregator.Count() >= p.AggregateBatchCount
 		var (
-			record *kinesis.PutRecordsRequestEntry
+			record *ktypes.PutRecordsRequestEntry
 			err    error
 		)
 		if needToDrain {
@@ -163,7 +166,7 @@ func (p *Producer) Stop() {
 func (p *Producer) loop() {
 	size := 0
 	drain := false
-	buf := make([]*kinesis.PutRecordsRequestEntry, 0, p.BatchCount)
+	buf := make([]ktypes.PutRecordsRequestEntry, 0, p.BatchCount)
 	tick := time.NewTicker(p.FlushInterval)
 
 	flush := func(msg string) {
@@ -173,7 +176,7 @@ func (p *Producer) loop() {
 		size = 0
 	}
 
-	bufAppend := func(record *kinesis.PutRecordsRequestEntry) {
+	bufAppend := func(record *ktypes.PutRecordsRequestEntry) {
 		// the record size limit applies to the total size of the
 		// partition key and data blob.
 		rsize := len(record.Data) + len([]byte(*record.PartitionKey))
@@ -181,7 +184,7 @@ func (p *Producer) loop() {
 			flush("batch size")
 		}
 		size += rsize
-		buf = append(buf, record)
+		buf = append(buf, *record)
 		if len(buf) >= p.BatchCount {
 			flush("batch length")
 		}
@@ -215,7 +218,7 @@ func (p *Producer) loop() {
 	}
 }
 
-func (p *Producer) drainIfNeed() (*kinesis.PutRecordsRequestEntry, bool) {
+func (p *Producer) drainIfNeed() (*ktypes.PutRecordsRequestEntry, bool) {
 	p.RLock()
 	needToDrain := p.aggregator.Size() > 0
 	p.RUnlock()
@@ -234,7 +237,7 @@ func (p *Producer) drainIfNeed() (*kinesis.PutRecordsRequestEntry, bool) {
 
 // flush records and retry failures if necessary.
 // for example: when we get "ProvisionedThroughputExceededException"
-func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason string) {
+func (p *Producer) flush(records []ktypes.PutRecordsRequestEntry, reason string) {
 	b := &backoff.Backoff{
 		Jitter: true,
 	}
@@ -243,8 +246,8 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 
 	for {
 		p.Logger.Info("flushing records", LogValue{"reason", reason}, LogValue{"records", len(records)})
-		out, err := p.Client.PutRecords(&kinesis.PutRecordsInput{
-			StreamName: &p.StreamName,
+		out, err := p.Client.PutRecords(context.Background(), &k.PutRecordsInput{
+			StreamName: aws.String(p.StreamName),
 			Records:    records,
 		})
 
@@ -295,10 +298,10 @@ func (p *Producer) flush(records []*kinesis.PutRecordsRequestEntry, reason strin
 
 // dispatchFailures gets batch of records, extract them, and push them
 // into the failure channel
-func (p *Producer) dispatchFailures(records []*kinesis.PutRecordsRequestEntry, err error) {
+func (p *Producer) dispatchFailures(records []ktypes.PutRecordsRequestEntry, err error) {
 	for _, r := range records {
-		if isAggregated(r) {
-			p.dispatchFailures(extractRecords(r), err)
+		if isAggregated(&r) {
+			p.dispatchFailures(extractRecords(&r), err)
 		} else {
 			p.failure <- &FailureRecord{err, r.Data, *r.PartitionKey}
 		}
@@ -306,8 +309,8 @@ func (p *Producer) dispatchFailures(records []*kinesis.PutRecordsRequestEntry, e
 }
 
 // failures returns the failed records as indicated in the response.
-func failures(records []*kinesis.PutRecordsRequestEntry,
-	response []*kinesis.PutRecordsResultEntry) (out []*kinesis.PutRecordsRequestEntry) {
+func failures(records []ktypes.PutRecordsRequestEntry,
+	response []ktypes.PutRecordsResultEntry) (out []ktypes.PutRecordsRequestEntry) {
 	for i, record := range response {
 		if record.ErrorCode != nil {
 			out = append(out, records[i])

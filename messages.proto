@@ -1,4 +1,7 @@
+// protoc --go_out=. --go_opt=paths=source_relative messages.proto
+syntax = "proto2";
 package producer;
+option go_package = "./producer";
 
 message AggregatedRecord {
   repeated string partition_key_table     = 1;
