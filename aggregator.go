@@ -32,16 +32,11 @@ func (a *Aggregator) Count() int {
 
 // Put record using `data` and `partitionKey`. This method is thread-safe.
 func (a *Aggregator) Put(data []byte, partitionKey string) {
-	// For now, all records in the aggregated record will have
-	// the same partition key.
-	// later, we will add shard-mapper same as the KPL use.
-	// see: https://github.com/a8m/kinesis-producer/issues/1
-	if len(a.pkeys) == 0 {
-		a.pkeys = []string{partitionKey}
-		a.nbytes += len([]byte(partitionKey))
-	}
+	a.pkeys = append(a.pkeys, partitionKey)
+	a.nbytes += len([]byte(partitionKey))
 	keyIndex := uint64(len(a.pkeys) - 1)
 
+	a.nbytes++ // protobuf message index and wire type
 	a.nbytes += partitionKeyIndexSize
 	a.buf = append(a.buf, &Record{
 		Data:              data,
