@@ -1,5 +1,5 @@
 # Amazon kinesis producer [![Build status][travis-image]][travis-url] [![License][license-image]][license-url] [![GoDoc][godoc-img]][godoc-url]
-> A KPL-like batch producer for Amazon Kinesis built on top of the official Go AWS SDK  
+> A KPL-like batch producer for Amazon Kinesis built on top of the official AWS SDK for Go V2
 and using the same aggregation format that [KPL][kpl-url] use.  
 
 ### Useful links
@@ -13,21 +13,33 @@ and using the same aggregation format that [KPL][kpl-url] use.
 package main
 
 import (
+	"context"
+	"net/http"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/a8m/kinesis-producer"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
-	client := kinesis.New(session.New(aws.NewConfig()))
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 20
+	transport.MaxIdleConnsPerHost = 20
+	httpClient := &http.Client{
+		Transport: transport,
+	}
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("us-west-2"), config.WithHTTPClient(httpClient))
+	if err != nil {
+		log.Fatalf("unable to load SDK config, %v", err)
+	}
+	client := kinesis.NewFromConfig(cfg)
 	pr := producer.New(&producer.Config{
-		StreamName:   "test",
+		StreamName:   aws.String("test"),
 		BacklogCount: 2000,
-		Client:       client
+		Client:       client,
 	})
 
 	pr.Start()
@@ -62,7 +74,7 @@ func main() {
 customLogger := &CustomLogger{}
 
 &producer.Config{
-  StreamName:   "test",
+  StreamName:   aws.String("test"),
   BacklogCount: 2000,
   Client:       client,
   Logger:       customLogger,
@@ -81,7 +93,7 @@ import (
 log := logrus.New()
 
 &producer.Config{
-  StreamName:   "test",
+  StreamName:   aws.String("test"),
   BacklogCount: 2000,
   Client:       client,
   Logger:       loggers.Logrus(log),
