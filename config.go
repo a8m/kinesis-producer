@@ -34,7 +34,7 @@ type Putter interface {
 // Config is the Producer configuration.
 type Config struct {
 
-	// StreamName is the ARN of the stream.
+	// StreamARN is the ARN of the stream.
 	StreamARN *string
 
 	// StreamName is the Kinesis stream.
