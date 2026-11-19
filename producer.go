@@ -248,7 +248,7 @@ func (p *Instance) loop() {
 	}
 }
 
-func (p *Producer) drainIfNeed() (*ktypes.PutRecordsRequestEntry, bool) {
+func (p *Instance) drainIfNeed() (*ktypes.PutRecordsRequestEntry, bool) {
 	p.RLock()
 	needToDrain := p.aggregator.Size() > 0
 	p.RUnlock()
@@ -267,7 +267,7 @@ func (p *Producer) drainIfNeed() (*ktypes.PutRecordsRequestEntry, bool) {
 
 // flush records and retry failures if necessary.
 // for example: when we get "ProvisionedThroughputExceededException"
-func (p *Producer) flush(records []ktypes.PutRecordsRequestEntry, reason string) {
+func (p *Instance) flush(records []ktypes.PutRecordsRequestEntry, reason string) {
 	b := &backoff.Backoff{
 		Jitter: true,
 	}
@@ -331,7 +331,7 @@ func (p *Producer) flush(records []ktypes.PutRecordsRequestEntry, reason string)
 
 // dispatchFailures gets batch of records, extract them, and push them
 // into the failure channel
-func (p *Producer) dispatchFailures(records []ktypes.PutRecordsRequestEntry, err error) {
+func (p *Instance) dispatchFailures(records []ktypes.PutRecordsRequestEntry, err error) {
 	for _, r := range records {
 		if isAggregated(&r) {
 			p.dispatchFailures(extractRecords(&r), err)
